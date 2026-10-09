@@ -3,7 +3,7 @@
 **Takshyra Data Reliability Platform** — an evidence-first, policy-governed Data Reliability Control Plane.
 
 > **Tagline:** Intelligence Behind Every Decision.
-> **Status:** M1 local core implemented and tested with SQLite integration tests. Docker Compose and PostgreSQL smoke verification remain pending in this environment; see [implementation status](docs/IMPLEMENTATION_STATUS.md). No cloud integrations, agents, or UI are implemented.
+> **Status:** M1 local core passed SQLite integration tests and a PostgreSQL/Compose smoke run on 2026-10-10; see [implementation status](docs/IMPLEMENTATION_STATUS.md). No cloud integrations, agents, or UI are implemented.
 > **Mission:** Help engineering teams determine what went wrong with data, which assets are affected, what actions are safe, and whether recovery actually restored correctness.
 
 ## The promise

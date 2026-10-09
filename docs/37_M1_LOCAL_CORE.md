@@ -4,7 +4,7 @@ This is a development-only, CPU local slice. It has no production identity provi
 
 ## Services and persistence
 
-`compose.yaml` defines PostgreSQL 17, Redis 7, FastAPI and a distinct worker. PostgreSQL stores tenants, users, memberships, pipeline definitions, runs, attempts, quality results and audit events. The worker claims queued runs with a database lease, polls the DB even if the Redis wakeup is lost, and allows at most two attempts after a stale lease. A stable per-run Parquet path and checksum manifest let a restarted worker reconcile an artifact left by a crash. File publication and the DB commit are not atomic together; this is a documented M1 limitation. The container stack has **not yet been smoke-tested in the current environment**.
+`compose.yaml` defines PostgreSQL 17, Redis 7, FastAPI and a distinct worker. PostgreSQL stores tenants, users, memberships, pipeline definitions, runs, attempts, quality results and audit events. The worker claims queued runs with a database lease, polls the DB even if the Redis wakeup is lost, and allows at most two attempts after a stale lease. A stable per-run Parquet path and checksum manifest let a restarted worker reconcile an artifact left by a crash. File publication and the DB commit are not atomic together; this is a documented M1 limitation. The container stack passed its PostgreSQL/Compose smoke test on 2026-10-10; see `IMPLEMENTATION_STATUS.md` for exact results.
 
 ## Fresh checkout commands
 
@@ -36,7 +36,7 @@ The API container runs `alembic upgrade head` and an idempotent seed before it s
 
 ## Verified local test commands
 
-With uv and Python 3.13 installed, `uv sync --extra test --python 3.13`, then `uv run --locked --extra test python -m pytest -q`, `uv run --locked --extra test ruff check takshyra tests migrations`, and `uv run --locked python scripts/validate_blueprint.py`. On Windows, a workspace cache may be needed: `$env:UV_CACHE_DIR='D:\Agentic_DataOps_Project\.uv-cache'`. Application tests use a migrated temporary SQLite database and a real Parquet file. PostgreSQL-specific migration and Compose behavior remain unverified here.
+With uv and Python 3.13 installed, `uv sync --extra test --python 3.13`, then `uv run --locked --extra test python -m pytest -q`, `uv run --locked --extra test ruff check takshyra tests migrations`, and `uv run --locked python scripts/validate_blueprint.py`. On Windows, a workspace cache may be needed: `$env:UV_CACHE_DIR='D:\Agentic_DataOps_Project\.uv-cache'`. Application tests use a migrated temporary SQLite database and a real Parquet file. The PostgreSQL migration and Compose smoke were also verified on 2026-10-10.
 
 ## Implemented HTTP routes
 

@@ -3,7 +3,7 @@
 **Takshyra Data Reliability Platform** — an evidence-first, policy-governed Data Reliability Control Plane.
 
 > **Tagline:** Intelligence Behind Every Decision.
-> **Status:** M1 local core passed SQLite integration tests and a PostgreSQL/Compose smoke run on 2026-10-10; see [implementation status](docs/IMPLEMENTATION_STATUS.md). No cloud integrations, agents, or UI are implemented.
+> **Status:** M1 local core and M2 deterministic incident handling passed local tests and PostgreSQL/Compose smoke runs; see [implementation status](docs/IMPLEMENTATION_STATUS.md). No cloud integrations, agents, or UI are implemented.
 > **Mission:** Help engineering teams determine what went wrong with data, which assets are affected, what actions are safe, and whether recovery actually restored correctness.
 
 ## The promise
@@ -42,6 +42,8 @@ Takshyra connects pipeline execution, batch/stream data quality, data contracts,
 
 ## Where the implementation will live
 The M1 implementation is in `takshyra/`, `migrations/`, `tests/`, and `compose.yaml`. See [M1 local core](docs/37_M1_LOCAL_CORE.md) for commands and verified behavior.
+
+M2 adds bounded demo faults, durable retries and tenant-scoped incidents. See [M2 incidents](docs/38_M2_INCIDENTS.md) for the supported cases, API routes and limitations.
 
 ## Demo in one sentence
 Inject silent data loss into an orders pipeline or a schema break into a telemetry decoder; see an incident, evidence and impact, safe policy evaluation, optional shadow test, approval where needed, and independently verified recovery.

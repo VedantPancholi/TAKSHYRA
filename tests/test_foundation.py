@@ -1,3 +1,4 @@
+import json
 from datetime import timedelta
 from pathlib import Path
 
@@ -10,8 +11,9 @@ from sqlalchemy.orm import Session
 
 from takshyra import db
 from takshyra.api import app
+from takshyra.auth import hash_password
 from takshyra.config import Settings
-from takshyra.models import Attempt, Pipeline, QualityResult, Run, now
+from takshyra.models import Attempt, Membership, Pipeline, QualityResult, Run, User, now
 from takshyra.runner import read_manifest, transform
 from takshyra.seed import seed
 from takshyra.worker import claim, process_one
@@ -71,7 +73,7 @@ def test_migration_seed_auth_and_worker(local):
     result = completed.json()
     assert (result["execution_status"], result["quality_status"], result["publication_status"]) == ("SUCCEEDED", "PASS", "PUBLISHED")
     assert result["row_count"] == 4
-    assert len(result["quality_results"]) == 2
+    assert len(result["quality_results"]) == 3
     with Session(engine) as session:
         run = session.get(Run, run_id)
         assert read_manifest(settings.output_dir, run.tenant_id, run_id)["row_count"] == 4
@@ -163,3 +165,164 @@ def test_production_demo_auth_rejected(local, monkeypatch):
     client = TestClient(app)
     headers, credentials = auth()
     assert client.get("/api/v1/pipelines", headers=headers, auth=credentials).status_code == 503
+
+
+def test_transient_fault_retries_twice_then_succeeds(local):
+    settings, engine = local
+    client = TestClient(app)
+    pid = pipeline_id(client)
+    headers, credentials = auth()
+    response = client.post(f"/api/v1/pipelines/{pid}/runs", headers=headers, auth=credentials, json={"demo_fault": "F02"})
+    assert response.status_code == 202
+    run_id = response.json()["id"]
+    for number in (1, 2):
+        assert process_one(settings, f"retry-{number}")
+        with Session(engine) as session:
+            run = session.get(Run, run_id)
+            assert run.status == "QUEUED"
+            assert run.next_attempt_at is not None
+            assert len(session.scalars(select(Attempt).where(Attempt.run_id == run_id)).all()) == number
+        assert not process_one(settings, "too-early")
+        with Session(engine) as session:
+            run = session.get(Run, run_id)
+            run.next_attempt_at = now() - timedelta(seconds=1)
+            session.commit()
+    assert process_one(settings, "retry-3")
+    completed = client.get(f"/api/v1/runs/{run_id}", headers=headers, auth=credentials).json()
+    assert (completed["execution_status"], completed["quality_status"], completed["publication_status"]) == ("SUCCEEDED", "PASS", "PUBLISHED")
+    assert [attempt["status"] for attempt in completed["attempts"]] == ["FAILED", "FAILED", "SUCCEEDED"]
+    assert client.get("/api/v1/incidents", headers=headers, auth=credentials).json()["items"] == []
+
+
+def test_persistent_fault_caps_attempts_and_deduplicates(local):
+    settings, engine = local
+    client = TestClient(app)
+    pid = pipeline_id(client)
+    headers, credentials = auth()
+    incident_id = None
+    for run_number in (1, 2):
+        headers["Idempotency-Key"] = f"persistent-{run_number:03d}"
+        queued = client.post(f"/api/v1/pipelines/{pid}/runs", headers=headers, auth=credentials, json={"demo_fault": "F03"})
+        assert queued.status_code == 202
+        run_id = queued.json()["id"]
+        for attempt in (1, 2, 3):
+            assert process_one(settings, f"persistent-{run_number}-{attempt}")
+            if attempt < 3:
+                with Session(engine) as session:
+                    run = session.get(Run, run_id)
+                    assert run.status == "QUEUED"
+                    run.next_attempt_at = now() - timedelta(seconds=1)
+                    session.commit()
+        result = client.get(f"/api/v1/runs/{run_id}", headers=headers, auth=credentials).json()
+        assert result["execution_status"] == "FAILED"
+        assert result["quality_status"] == "UNKNOWN"
+        assert len(result["attempts"]) == 3
+        items = client.get("/api/v1/incidents", headers=headers, auth=credentials).json()["items"]
+        assert len(items) == 1
+        assert items[0]["occurrence_count"] == run_number
+        assert items[0]["provenance"] == "simulated"
+        incident_id = items[0]["id"]
+    detail = client.get(f"/api/v1/incidents/{incident_id}", headers=headers, auth=credentials).json()
+    assert len(detail["timeline"]) == 2
+    assert {event["source_kind"] for event in detail["timeline"]} == {"RUN"}
+    assert detail["diagnosis_status"] == "UNKNOWN"
+
+
+def test_row_drop_incident_evidence_and_authorization(local, tmp_path):
+    settings, engine = local
+    client = TestClient(app)
+    pid = pipeline_id(client)
+    headers, credentials = auth()
+    run_id = client.post(f"/api/v1/pipelines/{pid}/runs", headers=headers, auth=credentials, json={"demo_fault": "F04"}).json()["id"]
+    assert process_one(settings, "row-drop-worker")
+    run = client.get(f"/api/v1/runs/{run_id}", headers=headers, auth=credentials).json()
+    assert (run["execution_status"], run["quality_status"], run["publication_status"], run["row_count"]) == ("SUCCEEDED", "FAIL", "QUARANTINED", 3)
+    incident = client.get("/api/v1/incidents", headers=headers, auth=credentials).json()["items"][0]
+    assert (incident["category"], incident["status"], incident["provenance"]) == ("QUALITY_FAILURE", "OPEN", "simulated")
+    detail = client.get(f"/api/v1/incidents/{incident['id']}", headers=headers, auth=credentials).json()
+    serialized = json.dumps(detail)
+    assert settings.demo_passwords["demo-a-executor"] not in serialized
+    assert settings.fixture_path not in serialized
+    evidence = [event for event in detail["timeline"] if event["source_kind"] == "QUALITY_RESULT"]
+    assert len(evidence) == 1
+    with Session(engine) as session:
+        assert session.get(QualityResult, evidence[0]["source_id"]).outcome == "FAIL"
+    viewer_headers, viewer_credentials = auth("demo-a-viewer")
+    assert client.get(f"/api/v1/incidents/{incident['id']}", headers=viewer_headers, auth=viewer_credentials).status_code == 200
+    assert client.patch(f"/api/v1/incidents/{incident['id']}", headers=viewer_headers, auth=viewer_credentials, json={"status": "INVESTIGATING"}).status_code == 403
+    b_headers, b_credentials = auth("demo-b-executor", "demo-b")
+    assert client.get(f"/api/v1/incidents/{incident['id']}", headers=b_headers, auth=b_credentials).status_code == 404
+    assert client.patch(f"/api/v1/incidents/{incident['id']}", headers=b_headers, auth=b_credentials, json={"status": "INVESTIGATING"}).status_code == 404
+    assert client.patch(f"/api/v1/incidents/{incident['id']}", headers=headers, auth=credentials, json={"status": "RESOLVED"}).status_code == 422
+    investigated = client.patch(f"/api/v1/incidents/{incident['id']}", headers=headers, auth=credentials, json={"status": "INVESTIGATING"})
+    assert investigated.status_code == 200
+    assert investigated.json()["status"] == "INVESTIGATING"
+    assert investigated.json()["timeline"][-1]["kind"] == "STATUS_CHANGED"
+    assert investigated.json()["owner_id"] is not None
+    with Session(engine) as session:
+        second = User(username="demo-a-second-executor", password_hash=hash_password("second-local-password-123456"))
+        session.add(second)
+        session.flush()
+        session.add(Membership(tenant_id=session.get(Run, run_id).tenant_id, user_id=second.id, role="executor"))
+        session.commit()
+    second_headers = {"X-Tenant-Slug": "demo-a"}
+    second_credentials = ("demo-a-second-executor", "second-local-password-123456")
+    assert client.get(f"/api/v1/incidents/{incident['id']}", headers=second_headers, auth=second_credentials).status_code == 200
+    assert client.patch(f"/api/v1/incidents/{incident['id']}", headers=second_headers, auth=second_credentials, json={"status": "INVESTIGATING"}).status_code == 403
+    bad_source = tmp_path / "null_customer.csv"
+    bad_source.write_text("order_id,order_ts,amount,customer_id\nord-1,2026-01-01T00:00:00Z,1,\n", encoding="utf-8")
+    null_settings = Settings(settings.app_env, settings.database_url, settings.redis_url, settings.output_dir, str(bad_source), settings.demo_passwords)
+    headers["Idempotency-Key"] = "different-quality-001"
+    second_run = client.post(f"/api/v1/pipelines/{pid}/runs", headers=headers, auth=credentials, json={})
+    assert second_run.status_code == 202
+    assert process_one(null_settings, "null-quality-worker")
+    items = client.get("/api/v1/incidents", headers=headers, auth=credentials).json()["items"]
+    assert len(items) == 2
+    assert {item["error_code"] for item in items} == {"QUALITY_SOURCE_ROW_COUNT_MATCH", "QUALITY_CUSTOMER_ID_NULL_0"}
+
+
+def test_freshness_miss_without_run_deduplicates(local):
+    _, engine = local
+    client = TestClient(app)
+    pid = pipeline_id(client)
+    headers, credentials = auth()
+    viewer_headers, viewer_credentials = auth("demo-a-viewer")
+    route = f"/api/v1/demo/pipelines/{pid}/freshness-miss"
+    assert client.post(route, headers=viewer_headers, auth=viewer_credentials).status_code == 403
+    first = client.post(route, headers=headers, auth=credentials)
+    second = client.post(route, headers=headers, auth=credentials)
+    assert first.status_code == second.status_code == 201
+    assert first.json()["id"] == second.json()["id"]
+    assert second.json()["run_id"] is None
+    assert second.json()["occurrence_count"] == 2
+    assert second.json()["provenance"] == "simulated"
+    assert len(second.json()["timeline"]) == 2
+    with Session(engine) as session:
+        assert len(session.scalars(select(Run)).all()) == 0
+    b_headers, b_credentials = auth("demo-b-executor", "demo-b")
+    assert client.post(route, headers=b_headers, auth=b_credentials).status_code == 404
+    assert client.post(route, headers=headers, auth=credentials, json={"error_code": "FORGED"}).status_code == 422
+
+
+def test_expired_leases_stop_and_open_incident(local):
+    _, engine = local
+    client = TestClient(app)
+    pid = pipeline_id(client)
+    headers, credentials = auth()
+    run_id = client.post(f"/api/v1/pipelines/{pid}/runs", headers=headers, auth=credentials, json={}).json()["id"]
+    for number in (1, 2, 3):
+        with Session(engine) as session:
+            claimed = claim(session, f"expired-{number}")
+            assert claimed == (run_id, session.get(Run, run_id).tenant_id, number)
+            run = session.get(Run, run_id)
+            run.lease_until = now() - timedelta(seconds=1)
+            session.commit()
+    with Session(engine) as session:
+        assert claim(session, "expired-final") is None
+        run = session.get(Run, run_id)
+        assert (run.status, run.error_code, run.quality_status) == ("TIMED_OUT", "LEASE_EXHAUSTED", "UNKNOWN")
+        attempts = session.scalars(select(Attempt).where(Attempt.run_id == run_id).order_by(Attempt.number)).all()
+        assert [attempt.status for attempt in attempts] == ["TIMED_OUT"] * 3
+    incidents = client.get("/api/v1/incidents", headers=headers, auth=credentials).json()["items"]
+    assert len(incidents) == 1
+    assert incidents[0]["error_code"] == "LEASE_EXHAUSTED"

@@ -35,7 +35,7 @@ def read_manifest(output_root: str, tenant_id: str, run_id: str) -> dict | None:
         return None
 
 
-def transform(fixture_path: str, output_root: str, tenant_id: str, run_id: str) -> dict:
+def transform(fixture_path: str, output_root: str, tenant_id: str, run_id: str, *, drop_last_row: bool = False) -> dict:
     existing = read_manifest(output_root, tenant_id, run_id)
     if existing:
         return existing
@@ -50,6 +50,9 @@ def transform(fixture_path: str, output_root: str, tenant_id: str, run_id: str) 
         rows = list(reader)
     if len(rows) > 100_000:
         raise ValueError("SOURCE_ROW_LIMIT")
+    source_row_count = len(rows)
+    if drop_last_row and rows:
+        rows = rows[:-1]
     table = pa.Table.from_pylist(rows, schema=pa.schema([(name, pa.string()) for name in expected]))
     parquet, manifest = artifact_paths(output_root, tenant_id, run_id)
     staged = parquet.with_suffix(".staging")
@@ -62,6 +65,7 @@ def transform(fixture_path: str, output_root: str, tenant_id: str, run_id: str) 
     checks = [
         {"rule_id": "row_count_min_1", "outcome": "PASS" if rows else "FAIL", "expected": ">=1", "observed": str(len(rows))},
         {"rule_id": "customer_id_null_0", "outcome": "PASS" if null_count == 0 else "FAIL", "expected": "0", "observed": str(null_count)},
+        {"rule_id": "source_row_count_match", "outcome": "PASS" if len(rows) == source_row_count else "FAIL", "expected": str(source_row_count), "observed": str(len(rows))},
     ]
     data = {
         "run_id": run_id,

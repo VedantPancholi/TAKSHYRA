@@ -2,7 +2,7 @@
 
 This is a **blueprint**. Implementation status lives only in [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md), never inferred from documentation presence.
 
-The implemented M1 local core and commands are documented in [37_M1_LOCAL_CORE.md](37_M1_LOCAL_CORE.md). Later capabilities in this index remain specifications.
+The implemented M1 local core and commands are documented in [37_M1_LOCAL_CORE.md](37_M1_LOCAL_CORE.md). M2 fault lab and incidents are documented in [38_M2_INCIDENTS.md](38_M2_INCIDENTS.md). Later capabilities in this index remain specifications.
 
 | Concern | Authoritative specification |
 |---|---|

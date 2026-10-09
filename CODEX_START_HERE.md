@@ -1,6 +1,6 @@
 # Codex — start here (first session)
 
-**Historical first-session prompt:** M1 implementation has begun. Check `docs/IMPLEMENTATION_STATUS.md` and `docs/37_M1_LOCAL_CORE.md` before using the instructions below. The Docker/PostgreSQL exit gate is still open.
+**Historical first-session prompt:** M1 is complete and its Docker/PostgreSQL exit gate passed on 2026-10-10. Check `docs/IMPLEMENTATION_STATUS.md` and `docs/37_M1_LOCAL_CORE.md` for current status before using the original instructions below.
 
 The original first-session guidance follows. Act as staff data-platform engineer, backend engineer, security engineer, and pragmatic product lead.
 

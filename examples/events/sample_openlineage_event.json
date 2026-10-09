@@ -1,0 +1,28 @@
+{
+  "eventType": "COMPLETE",
+  "eventTime": "2026-10-09T10:00:00Z",
+  "run": {
+    "runId": "11111111-1111-4111-8111-111111111111",
+    "facets": {}
+  },
+  "job": {
+    "namespace": "takshyra.demo.local",
+    "name": "orders_to_parquet",
+    "facets": {}
+  },
+  "inputs": [
+    {
+      "namespace": "file://takshyra-demo",
+      "name": "seed/orders.csv",
+      "facets": {}
+    }
+  ],
+  "outputs": [
+    {
+      "namespace": "file://takshyra-demo",
+      "name": "output/orders.parquet",
+      "facets": {}
+    }
+  ],
+  "producer": "https://example.invalid/takshyra/blueprint/example"
+}

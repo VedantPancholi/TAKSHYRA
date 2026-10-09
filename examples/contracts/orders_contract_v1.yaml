@@ -1,0 +1,20 @@
+# Illustrative declarative demo contract; not active application configuration yet.
+contract_id: orders-daily-v1
+version: 1
+dataset: demo.orders_curated
+owner: demo-data-platform
+schema_compatibility: FORWARD_ADDITIVE
+schema:
+  - {name: order_id, type: string, required: true}
+  - {name: order_ts, type: timestamp, required: true}
+  - {name: amount, type: decimal, required: true}
+  - {name: customer_id, type: string, required: true}
+primary_key: [order_id]
+checks:
+  - {rule_id: pk_unique, type: duplicate_rate, severity: ERROR, max_rate: 0.0}
+  - {rule_id: amount_not_null, type: null_rate, column: amount, severity: ERROR, max_rate: 0.0}
+  - {rule_id: completeness, type: row_count_ratio, severity: ERROR, min_ratio: 0.95, baseline_source: seeded_manifest}
+  - {rule_id: amount_nonnegative, type: numeric_min, column: amount, severity: ERROR, min_value: 0}
+publish_policy:
+  on_error: QUARANTINE
+  on_unknown: HOLD

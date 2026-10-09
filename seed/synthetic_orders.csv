@@ -1,0 +1,5 @@
+order_id,order_ts,amount,customer_id
+ord-001,2026-10-08T08:00:00Z,120.00,cust-a
+ord-002,2026-10-08T09:00:00Z,20.50,cust-b
+ord-003,2026-10-08T09:15:00Z,200.00,cust-a
+ord-004,2026-10-08T10:00:00Z,42.99,cust-c

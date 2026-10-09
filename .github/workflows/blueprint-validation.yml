@@ -1,0 +1,18 @@
+name: Blueprint Validation
+on:
+  push:
+  pull_request:
+
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify documentation inventory and links
+        run: python scripts/validate_blueprint.py
+
+# This checks documentation structure only. Application tests and the
+# Compose smoke job are defined separately in m1.yml.

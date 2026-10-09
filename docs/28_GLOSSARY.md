@@ -1,0 +1,25 @@
+# Domain glossary
+
+- **Control plane:** Metadata, monitoring, policy and coordination layer; does not itself replace compute/orchestrator.
+- **Data plane:** Sources, transforms, sinks and event processors handling actual records.
+- **Run:** One execution instance of a pipeline definition.
+- **Attempt:** One bounded worker execution of a run or action.
+- **Execution status:** Whether computing technically completed.
+- **Quality status:** Whether output meets contract checks.
+- **Publication status:** Whether output is approved for downstream visibility.
+- **Data contract:** Versioned expected shape/content/timing rules owned by a team.
+- **Dataset:** Named data asset such as table, stream, object collection, or partitioned output.
+- **Data product:** Owned collection of datasets and consumers with business use and objectives.
+- **Lineage:** Evidence of how jobs/datasets depend on and derive from one another.
+- **Blast radius:** Potential downstream impact through known/inferred dependencies.
+- **SLO:** Explicit objective over a measurement window (not a contractual SLA).
+- **Hypothesis:** Plausible cause not yet independently verified.
+- **Verification:** Separate validation that recovery restored the intended invariants.
+- **Policy decision:** Deterministic authorization/risk decision about exact action.
+- **Shadow replay:** Isolated execution against retained authorized snapshot/data, not live mutation.
+- **Idempotency:** Repeating same logical request produces no unintended additional side effects.
+- **At-least-once:** Delivery may repeat; consumers must tolerate duplicates.
+- **DLQ:** Dead-letter queue for failed/invalid messages after bounded handling.
+- **Watermark:** Event-time processing progress estimate for handling late data.
+- **Incident memory:** Searchable verified past resolution evidence, not free-form self-training.
+- **Provenance:** Where evidence came from, when, by whom and with what integrity.

@@ -1,0 +1,56 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: takshyra
+      POSTGRES_USER: takshyra_local
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U takshyra_local -d takshyra"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+  api:
+    build: .
+    environment: &app_env
+      APP_ENV: development
+      DEMO_A_EXECUTOR_PASSWORD: ${DEMO_A_EXECUTOR_PASSWORD:?Set DEMO_A_EXECUTOR_PASSWORD in .env}
+      DEMO_A_VIEWER_PASSWORD: ${DEMO_A_VIEWER_PASSWORD:?Set DEMO_A_VIEWER_PASSWORD in .env}
+      DEMO_B_EXECUTOR_PASSWORD: ${DEMO_B_EXECUTOR_PASSWORD:?Set DEMO_B_EXECUTOR_PASSWORD in .env}
+      DEMO_B_VIEWER_PASSWORD: ${DEMO_B_VIEWER_PASSWORD:?Set DEMO_B_VIEWER_PASSWORD in .env}
+      DATABASE_URL: postgresql+psycopg://takshyra_local:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/takshyra
+      REDIS_URL: redis://redis:6379/0
+      OUTPUT_DIR: /app/data/output
+      FIXTURE_PATH: /app/seed/synthetic_orders.csv
+    command: ["sh", "-c", "alembic upgrade head && python -m takshyra.seed && uvicorn takshyra.api:app --host 0.0.0.0 --port 8000"]
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - output:/app/data/output
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/ready', timeout=2)"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+  worker:
+    build: .
+    environment: *app_env
+    command: ["python", "-m", "takshyra.worker"]
+    volumes:
+      - output:/app/data/output
+    depends_on:
+      api:
+        condition: service_healthy
+volumes:
+  pgdata:
+  output:

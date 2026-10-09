@@ -1,0 +1,56 @@
+{
+  "note": "Illustrative fault catalogue, not executable until Codex implements runner",
+  "scenarios": [
+    {
+      "id": "F01",
+      "name": "healthy_orders",
+      "expected": {
+        "execution": "SUCCEEDED",
+        "quality": "PASS",
+        "publication": "PUBLISHED"
+      }
+    },
+    {
+      "id": "F02",
+      "name": "transient_503",
+      "expected": {
+        "attempts_max": 3,
+        "execution": "SUCCEEDED",
+        "audit_required": true
+      }
+    },
+    {
+      "id": "F03",
+      "name": "persistent_unavailable",
+      "expected": {
+        "execution": "FAILED",
+        "incident": "OPEN"
+      }
+    },
+    {
+      "id": "F04",
+      "name": "silent_row_loss_30pct",
+      "expected": {
+        "execution": "SUCCEEDED",
+        "quality": "FAIL",
+        "publication": "QUARANTINED"
+      }
+    },
+    {
+      "id": "F10",
+      "name": "tampered_approval",
+      "expected": {
+        "action": "DENIED",
+        "side_effects": 0
+      }
+    },
+    {
+      "id": "F15",
+      "name": "checkpoint_sink_gap",
+      "expected": {
+        "reconciliation": "FAIL",
+        "incident": "OPEN"
+      }
+    }
+  ]
+}

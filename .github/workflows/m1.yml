@@ -1,0 +1,31 @@
+name: M1 core
+on:
+  push:
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.13"
+      - run: uv sync --extra test --locked
+      - run: uv run --locked ruff check takshyra tests migrations scripts/smoke.py
+      - run: uv run --locked python -m pytest -q
+      - run: uv run --locked python scripts/validate_blueprint.py
+  compose-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create throwaway local credentials
+        run: |
+          for name in POSTGRES_PASSWORD DEMO_A_EXECUTOR_PASSWORD DEMO_A_VIEWER_PASSWORD DEMO_B_EXECUTOR_PASSWORD DEMO_B_VIEWER_PASSWORD; do
+            echo "$name=$(openssl rand -hex 24)" >> .env
+          done
+      - run: docker compose up --build -d --wait
+      - run: docker compose exec -T api python scripts/smoke.py
+      - if: always()
+        run: docker compose logs --no-color --tail=100
+      - if: always()
+        run: docker compose down -v

@@ -8,4 +8,5 @@ COPY alembic.ini ./
 COPY migrations ./migrations
 COPY seed ./seed
 COPY scripts/smoke.py ./scripts/smoke.py
+COPY scripts/smoke_m2.py ./scripts/smoke_m2.py
 EXPOSE 8000

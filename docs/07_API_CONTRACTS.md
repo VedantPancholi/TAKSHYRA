@@ -1,6 +1,6 @@
 # HTTP API contract (planned)
 
-M1 routes currently implemented are documented in [37_M1_LOCAL_CORE.md](37_M1_LOCAL_CORE.md). The remaining routes and global conventions below are future targets; do not infer current behavior from this planned contract.
+Implemented M1 routes are documented in [37_M1_LOCAL_CORE.md](37_M1_LOCAL_CORE.md), and M2 incident routes in [38_M2_INCIDENTS.md](38_M2_INCIDENTS.md). The remaining routes and global conventions below are future targets; do not infer current behavior from this planned contract.
 
 ## Global conventions
 - Prefix `/api/v1`. Typed OpenAPI models. JSON. UUID IDs. ISO-8601 UTC timestamps.
@@ -25,6 +25,8 @@ M1 routes currently implemented are documented in [37_M1_LOCAL_CORE.md](37_M1_LO
 | `GET/POST /api/v1/contracts` | active/versioned contract | contract.view / contract.manage |
 | `GET /api/v1/lineage/{asset_id}/impact` | bounded graph traversal | asset.view |
 | `GET /api/v1/incidents`, `/{id}` | incidents/evidence | incident.view |
+| `PATCH /api/v1/incidents/{id}` | mark open incident investigating | executor and owner checks |
+| `POST /api/v1/demo/pipelines/{id}/freshness-miss` | simulated F07 event with no run | development executor only |
 | `GET /api/v1/incidents/{id}/timeline` | immutable-style lifecycle | incident.view |
 | `POST /api/v1/incidents/{id}/diagnoses` | launch bounded investigation | incident.investigate |
 | `GET /api/v1/proposals/{id}` | inspect exact plan and policy | proposal.view |
@@ -35,6 +37,8 @@ M1 routes currently implemented are documented in [37_M1_LOCAL_CORE.md](37_M1_LO
 | `GET/POST /api/v1/replays` | local-only shadow simulation | replay.view / replay.simulate |
 | `GET /api/v1/audit-events` | tenant-scoped audit | audit.view |
 | `POST /api/v1/demo/scenarios/{name}` | inject bounded demo scenario | development-only + demo.manage |
+
+The incident list/detail routes and the two added M2 routes above are implemented. The separate timeline and diagnosis routes, generic demo scenario route, and other resource operations remain planned. M2 timeline events are embedded in `GET /api/v1/incidents/{id}`. M2 run trigger accepts only `{}`, `{"parameters":{}}` or one of the fixed `demo_fault` codes `F02`, `F03`, `F04`; the header holds the `Idempotency-Key`. The illustrative trigger below is a future contract and is not accepted by the M2 API.
 
 ## Example trigger (illustrative)
 ```json

@@ -68,6 +68,8 @@ class Run(Base):
     row_count: Mapped[int | None] = mapped_column(Integer)
     manifest_path: Mapped[str | None] = mapped_column(String(512))
     error_code: Mapped[str | None] = mapped_column(String(64))
+    demo_fault: Mapped[str | None] = mapped_column(String(3))
+    next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
@@ -111,3 +113,45 @@ class AuditEvent(Base):
     outcome: Mapped[str] = mapped_column(String(16), nullable=False)
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     safe_detail: Mapped[str] = mapped_column(Text, default="{}")
+
+
+class Incident(Base):
+    __tablename__ = "incidents"
+    __table_args__ = (
+        ForeignKeyConstraint(["tenant_id", "pipeline_id"], ["pipelines.tenant_id", "pipelines.id"]),
+        ForeignKeyConstraint(["tenant_id", "run_id"], ["runs.tenant_id", "runs.id"]),
+        UniqueConstraint("tenant_id", "id"),
+        UniqueConstraint("tenant_id", "fingerprint"),
+        Index("ix_incidents_tenant_last_seen", "tenant_id", "last_seen_at"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), nullable=False)
+    pipeline_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    run_id: Mapped[str | None] = mapped_column(String(36))
+    owner_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    category: Mapped[str] = mapped_column(String(32), nullable=False)
+    severity: Mapped[str] = mapped_column(String(16), nullable=False)
+    provenance: Mapped[str] = mapped_column(String(16), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="OPEN")
+    error_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    occurrence_count: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class IncidentEvent(Base):
+    __tablename__ = "incident_events"
+    __table_args__ = (
+        ForeignKeyConstraint(["tenant_id", "incident_id"], ["incidents.tenant_id", "incidents.id"]),
+        Index("ix_incident_events_timeline", "incident_id", "occurred_at"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    tenant_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    incident_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    kind: Mapped[str] = mapped_column(String(24), nullable=False)
+    code: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_kind: Mapped[str] = mapped_column(String(24), nullable=False)
+    source_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    actor_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)

@@ -1,7 +1,7 @@
 # Implementation status — verified engineering record
 
 **Updated:** 2026-10-10
-**Stage:** M0 and M1 local core complete. PostgreSQL migration and Compose smoke verification passed on 2026-10-10. M2 has not started.
+**Stage:** M0, M1 local core and M2 incident fault lab complete for local development. PostgreSQL migration and Compose smoke verification passed on 2026-10-10. M3 has not started.
 
 ## Reconnaissance
 
@@ -26,6 +26,14 @@
 - Development HTTP Basic authentication uses four distinct seeded PBKDF2 password hashes. It is guarded by explicit `APP_ENV=development` and Compose loopback binding; production identity is deliberately unavailable in M1.
 - Publication uses a deterministic per-run artifact path and atomic manifest replacement. Database and filesystem have no shared transaction; restart reconciliation checks the manifest before attempting work again.
 
+## M2 implementation and verification
+
+- Selected vertical slice: deterministic F02/F03/F04/F07 fault cases, bounded retry scheduling, incident detection/deduplication, typed evidence timeline, role-protected incident reads and investigation ownership. Files: `takshyra/{api,incidents,models,runner,worker}.py`, migrations `0002_incidents` and `0003_incident_owner`, `tests/test_foundation.py`, `scripts/smoke_m2.py`, Dockerfile, CI and docs. The data model adds demo fault and next-attempt columns to runs plus tenant-scoped incident and timeline tables; no external system schema is touched.
+- Security impact: demo requests accept only fixed fault codes under development authentication; tenant membership and executor role remain server-side. Incident references are created from stored run, quality and pipeline records, with no raw rows, logs, file paths or credentials in timeline payloads. Viewers can read; only an executor can start investigation, and a different executor cannot alter an owned incident. `RESOLVED` is unavailable in M2.
+- F02 simulates two transient 503 errors then succeeds on attempt three. F03 simulates a persistent 503, stops after three attempts, and opens an execution incident. F04 drops one of four synthetic rows after source read; transform succeeds, quality fails, publication is quarantined, and the incident references the failed check. F07 manually injects a simulated missed freshness event without a run. These are fixed simulations, not real HTTP or automatic freshness monitoring.
+- Retry schedule is durable in PostgreSQL with 1 then 2 second delays. Three exhausted leases mark the run timed out and open an incident. Incident fingerprints include tenant, pipeline, category, error code, provenance and UTC date; repeated alerts within that day increment the count and append timeline observations. Diagnosis remains explicitly `UNKNOWN`.
+- Local migrated SQLite integration suite: 10 passed, one upstream Starlette/AnyIO deprecation warning. Covers retries/deadline, cap, crash recovery, quality evidence, daily dedup observations, tenant isolation, viewer denial, owner denial, forbidden resolution and exhausted leases. PostgreSQL migration `0003_incident_owner (head)` and both M1/M2 Compose smoke scripts passed. See [M2 runbook](38_M2_INCIDENTS.md).
+
 ## Implemented and locally verified
 
 - Files added: `pyproject.toml`, `uv.lock`, `takshyra/{api,auth,config,db,models,runner,seed,worker}.py`, `alembic.ini`, `migrations/`, `tests/test_foundation.py`, `Dockerfile`, `compose.yaml`, `scripts/smoke.py`, `.github/workflows/m1.yml`, and `docs/37_M1_LOCAL_CORE.md`. Updated `.env.example`, `README.md`, `Makefile`, API/local docs and changelog.
@@ -48,13 +56,19 @@
 | `docker compose exec -T api alembic current` | Exit 0; `0001_foundation (head)` on PostgreSQL. |
 | `docker compose exec -T api python scripts/smoke.py` | Exit 0; seeded run succeeded, quality passed, publication succeeded, and Parquet metadata showed four rows. |
 | `docker compose ps` after smoke | Exit 0; all four services running; API healthy and bound to `127.0.0.1:8000`. |
+| M2 `uv run --locked --extra test python -m pytest -q` with workspace cache | Exit 0; 10 passed, one upstream deprecation warning. |
+| M2 `uv run --locked --extra test ruff check takshyra tests migrations scripts/smoke.py scripts/smoke_m2.py` | Exit 0; all checks passed. |
+| M2 `docker compose up --build -d --wait` | Exit 0; PostgreSQL, Redis, API and worker healthy after the M2 build. |
+| M2 `docker compose exec -T api alembic current` | Exit 0; `0003_incident_owner (head)` on existing PostgreSQL volume. |
+| M2 `docker compose exec -T api python scripts/smoke.py` | Exit 0; M1 four-row Parquet regression smoke passed. |
+| M2 `docker compose exec -T api python scripts/smoke_m2.py` | Exit 0; F02 retry, F03 execution incident, F04 quality incident and F07 freshness incident passed through Compose. |
 
 ## Security and remaining risks
 
 - No client-supplied execution path, role, tenant ID, code or SQL. Tenant membership and role come from persisted server records. Worker checks tenant and pipeline kind. Runs, attempts, quality and audit are durable DB records. Redis is only a wakeup hint.
 - Basic credentials are suitable only for loopback development. There is no TLS, production identity, rate limit, request byte limit, DB RLS, dedicated least-privilege DB roles or independent secret scan yet. Do not expose this stack to other hosts.
 - Database/filesystem publication is not atomic; deterministic manifests permit recovery of a crash after file write, but no artifact garbage collection is implemented. Output may remain on disk when a run fails after writing. Worker lease is five minutes with a maximum of two claims; a long transform may be reclaimed, and the fixed tiny fixture is the current bound.
-- M1's local PostgreSQL/Compose exit gate passed. The stack remains development-only. CI execution, restore testing, metrics, production identity, and operation outside loopback remain unverified or out of M1 scope. The next planned vertical slice is M2 incident creation and deduplication (`CORE-006`), on its own feature branch.
+- M1 and M2 local PostgreSQL/Compose exit gates passed. The stack remains development-only. CI execution, restore testing, metrics, production identity and operation outside loopback remain unverified or out of scope. M2 freshness injection is manual, and simulated 503 faults do not contact an HTTP source. Incident resolution, approval and actions wait for later milestones. The next planned vertical slice is M3 policy and governed recovery, on its own feature branch.
 
 ## Naming and repository handoff
 

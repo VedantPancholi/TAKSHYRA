@@ -1,7 +1,7 @@
 # Implementation status — verified engineering record
 
 **Updated:** 2026-10-23
-**Stage:** M0–M4 local milestones complete for development. PostgreSQL migration and Compose smoke verification passed through M4 on 2026-10-23.
+**Stage:** M0–M5 local milestones complete for development. PostgreSQL migration and Compose smoke verification passed through M5 on 2026-10-23.
 
 ## Reconnaissance
 
@@ -53,6 +53,13 @@
 - Consolidated contributor workflow and safety rules in `CONTRIBUTING.md`, removed obsolete development onboarding material from the current tree, and updated the roadmap, architecture map, documentation index and validator to keep public links accurate. No data model, API, runtime configuration or application behavior changed.
 - Local validation after cleanup: `uv run --locked python scripts/validate_blueprint.py` passed (15 required files, 65 internal links and example JSON); Ruff passed; `uv run --locked --extra test python -m pytest -q --tb=short` passed (17 tests, one upstream Starlette/AnyIO deprecation warning); `git diff --check` passed.
 
+## M5 implementation and verification
+
+- Selected slice: tenant-scoped asset registry, directed edges with provenance and validity windows, exact OpenLineage job-facet dataset mappings, idempotent event identity, bounded potential impact traversal and incident-to-output linkage. Files: `takshyra/{models,seed,api,lineage,lineage_api}.py`, migration `0006_lineage`, `tests/test_lineage.py`, `scripts/smoke_m5.py`, Dockerfile, CI and docs. Data model adds assets, lineage events and edges and a nullable tenant-checked pipeline output asset reference. No external system or cloud resource is changed.
+- Security impact: tenant comes from authenticated membership; only executor/admin can ingest; reads and edges are tenant-scoped with composite foreign keys. Event size, identities, array lengths, producer URL, traversal depth and node count are bounded. Unknown top-level fields and client tenant IDs are rejected. Producer URLs are never fetched; raw facet bodies are not stored. Missing explicit lineage mapping yields no edges. Seed graph is simulated; ingested event edges are labeled as submitted metadata rather than independently verified flow.
+- SQLite integration tests cover seeded independent chains, F04 incident impact, viewer access, cross-tenant denial, cycles, stale edges, depth/node truncation, explicit two-input/two-output mapping, idempotent duplicate, conflicting duplicate, invalid mapping and producer URL, and unknown impact. Full local suite passed: 20 tests, one upstream Starlette/AnyIO deprecation warning. Ruff, documentation validation and diff checks passed.
+- Existing PostgreSQL volume migrated to `0006_lineage (head)`. Compose M1–M5 smoke scripts passed in order; M5 smoke checks seeded impact, F04 incident link, exact mapping and duplicate ingestion. See [M5 runbook](41_M5_LINEAGE.md). CI is updated but its execution for this branch is not yet verified.
+
 ## Implemented and locally verified
 
 - Files added: `pyproject.toml`, `uv.lock`, `takshyra/{api,auth,config,db,models,runner,seed,worker}.py`, `alembic.ini`, `migrations/`, `tests/test_foundation.py`, `Dockerfile`, `compose.yaml`, `scripts/smoke.py`, `.github/workflows/m1.yml`, and `docs/37_M1_LOCAL_CORE.md`. Updated `.env.example`, `README.md`, `Makefile`, API/local docs and changelog.
@@ -94,13 +101,18 @@
 | M4 `uv run --locked --extra test python -m pytest -q --tb=short` | Exit 0; 17 passed, one upstream Starlette/AnyIO deprecation warning. |
 | M4 `uv run --locked --extra test ruff check takshyra tests migrations scripts` | Exit 0; all checks passed. |
 | M4 `uv run --locked python scripts/validate_blueprint.py` | Exit 0; 19 required files, 66 internal links and example JSON validated. |
+| M5 `uv run --locked --extra test python -m pytest -q --tb=short` | Exit 0; 20 passed, one upstream Starlette/AnyIO deprecation warning. |
+| M5 `uv run --locked --extra test ruff check takshyra tests migrations scripts` | Exit 0; all checks passed. |
+| M5 `uv run --locked python scripts/validate_blueprint.py` | Exit 0; 15 required files, 71 internal links and example JSON validated. |
+| M5 `docker compose up --build -d --wait` and `alembic current` | Exit 0; four services healthy, PostgreSQL at `0006_lineage (head)`. |
+| M5 `docker compose exec -T api python scripts/smoke.py` through `scripts/smoke_m5.py` | Exit 0; M1–M5 smokes passed in order. |
 
 ## Security and remaining risks
 
 - No client-supplied execution path, role, tenant ID, code or SQL. Tenant membership and role come from persisted server records. Worker checks tenant and pipeline kind. Runs, attempts, quality and audit are durable DB records. Redis is only a wakeup hint.
 - Basic credentials are suitable only for loopback development. There is no TLS, production identity, rate limit, request byte limit, DB RLS, dedicated least-privilege DB roles or independent secret scan yet. Do not expose this stack to other hosts.
 - Database/filesystem publication is not atomic; deterministic manifests permit recovery of a crash after file write, but no artifact garbage collection is implemented. Output may remain on disk when a run fails after writing. Worker lease is five minutes with a maximum of two claims; a long transform may be reclaimed, and the fixed tiny fixture is the current bound.
-- M1–M4 local PostgreSQL/Compose exit gates passed. M4 PR #4 also passed GitHub's application test, Compose smoke and documentation workflows. The stack remains development-only. Restore testing, metrics, production identity and operation outside loopback remain unverified or out of scope. M2 freshness injection is manual, and simulated 503 faults do not contact an HTTP source. M3 notifications are local DB records and the pause action is only simulated. `pipeline.retry_demo` verification proves durable enqueue, not downstream run success. M4 gates only Takshyra's DB visibility and manifest API; it does not atomically publish to an external consumer. Full incident resolution and customer-system recovery are not implemented. Next planned slice: M5 lineage and impact on its own branch.
+- M1–M5 local PostgreSQL/Compose exit gates passed. M4 PR #4 also passed GitHub's application test, Compose smoke and documentation workflows. The stack remains development-only. Restore testing, metrics, production identity and operation outside loopback remain unverified or out of scope. M2 freshness injection is manual, and simulated 503 faults do not contact an HTTP source. M3 notifications are local DB records and the pause action is only simulated. `pipeline.retry_demo` verification proves durable enqueue, not downstream run success. M4 gates only Takshyra's DB visibility and manifest API; it does not atomically publish to an external consumer. M5 supports a bounded OpenLineage subset and reports potential, not confirmed, downstream impact. Full incident resolution and customer-system recovery are not implemented. Next planned slice: M6 operations UI on its own branch.
 
 ## Naming and repository handoff
 

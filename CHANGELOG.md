@@ -11,6 +11,7 @@
 - Added M3 versioned local policy, exact-payload approval, four registered bounded actions, durable action/effect timeline, role and tenant rechecks, independent database verification, migration, negative tests and Compose smoke coverage.
 - Added M4 tenant-scoped immutable contract versions, run-bound contract hashes, typed deterministic quality checks, explicit unknown/hold and failure/quarantine publication decisions, protected manifest metadata, migration and tests.
 - Consolidated public contribution guidance and removed obsolete development-only onboarding material from the current repository tree.
+- Added M5 tenant-scoped asset graph, explicit OpenLineage job-facet mappings, bounded impact APIs, incident linkage, migration, tests and Compose smoke coverage.
 - No cloud resources, agents, UI or paid integrations implemented.
 
 ## Blueprint — 2026-10-09

@@ -5,7 +5,7 @@
 - CPU and 16GB RAM recommended for comfortable dev; core may work on less depending on running workloads; optional LLM + Kafka simultaneously may need 32GB+.
 - No cloud account or model key required for core. Install dependencies from reviewed source only.
 
-## Verified M1 commands
+## Verified local commands through M5
 
 Create `.env` from `.env.example` and replace all seven placeholders with different random local passwords of at least 16 characters. Keep `.env` out of source control. See [M1 local core](37_M1_LOCAL_CORE.md) for full setup and credential guidance.
 
@@ -14,6 +14,8 @@ docker compose up --build -d --wait
 docker compose exec -T api python scripts/smoke.py
 docker compose exec -T api python scripts/smoke_m2.py
 docker compose exec -T api python scripts/smoke_m3.py
+docker compose exec -T api python scripts/smoke_m4.py
+docker compose exec -T api python scripts/smoke_m5.py
 docker compose down
 ```
 
@@ -28,7 +30,7 @@ The same `docker compose` commands work in a Bash shell. While the stack is runn
 Default `docker compose up` should start minimum core and avoid unnecessary heavyweight optional components. Use named volumes for DB, a clearly scoped outputs directory and explicit reset command requiring confirmation.
 
 ## Current state
-M1 includes the API, worker, PostgreSQL migration, Compose stack and application tests. M2 adds durable incident records and deterministic fault scenarios. M3 adds policy-gated local actions and approval. See [implementation status](IMPLEMENTATION_STATUS.md) for exact results and limitations. The web app and later services remain unimplemented.
+M1 includes the API, worker, PostgreSQL migration, Compose stack and application tests. M2 adds durable incidents and deterministic faults; M3 adds policy-gated local actions and approval; M4 adds contract versions and publication decisions; M5 adds the local asset graph and potential impact. See [implementation status](IMPLEMENTATION_STATUS.md) for exact results and limitations. The web app and later services remain unimplemented.
 
 ## Environment semantics (planned)
 `APP_ENV=development`, `AUTH_MODE=development`, `DATABASE_URL`, `REDIS_URL`, `ENABLE_DEMO_SCENARIOS`, `LLM_PROVIDER=none`, `ENABLE_AZURE_INTEGRATION=false`, `ENABLE_LIVE_AZURE_TESTS=false`; `.env.example` has placeholders only. The demo-auth feature must be blocked in non-development environments.

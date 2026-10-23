@@ -1,6 +1,6 @@
 # HTTP API contract (planned)
 
-Implemented M1 routes are documented in [37_M1_LOCAL_CORE.md](37_M1_LOCAL_CORE.md), M2 incident routes in [38_M2_INCIDENTS.md](38_M2_INCIDENTS.md), and M3 action routes in [39_M3_POLICY_ACTIONS.md](39_M3_POLICY_ACTIONS.md). The remaining routes and global conventions below are future targets; do not infer current behavior from this planned contract.
+Implemented M1 routes are documented in [37_M1_LOCAL_CORE.md](37_M1_LOCAL_CORE.md), M2 incident routes in [38_M2_INCIDENTS.md](38_M2_INCIDENTS.md), M3 action routes in [39_M3_POLICY_ACTIONS.md](39_M3_POLICY_ACTIONS.md), and M4 contract/manifest routes in [40_M4_CONTRACTS.md](40_M4_CONTRACTS.md). The remaining routes and global conventions below are future targets; do not infer current behavior from this planned contract.
 
 ## Global conventions
 - Prefix `/api/v1`. Typed OpenAPI models. JSON. UUID IDs. ISO-8601 UTC timestamps.
@@ -21,8 +21,11 @@ Implemented M1 routes are documented in [37_M1_LOCAL_CORE.md](37_M1_LOCAL_CORE.m
 | `GET/PATCH /api/v1/pipelines/{id}` | inspect/update | view / pipeline.manage |
 | `POST /api/v1/pipelines/{id}/runs` | enqueue idempotently | pipeline.execute |
 | `GET /api/v1/runs/{id}` | run/attempt/quality summary | pipeline.view |
+| `GET /api/v1/runs/{id}/manifest` | verified manifest metadata | tenant member |
 | `GET /api/v1/datasets`, `/{id}` | assets and versions | asset.view |
 | `GET/POST /api/v1/contracts` | active/versioned contract | contract.view / contract.manage |
+| `GET /api/v1/contracts/{dataset_id}/versions/{version}` | stored version | tenant member |
+| `POST /api/v1/contracts/{dataset_id}/versions` | create next active version | approver/admin |
 | `GET /api/v1/lineage/{asset_id}/impact` | bounded graph traversal | asset.view |
 | `GET /api/v1/incidents`, `/{id}` | incidents/evidence | incident.view |
 | `PATCH /api/v1/incidents/{id}` | mark open incident investigating | executor and owner checks |
@@ -42,7 +45,7 @@ Implemented M1 routes are documented in [37_M1_LOCAL_CORE.md](37_M1_LOCAL_CORE.m
 | `GET /api/v1/audit-events` | tenant-scoped audit | audit.view |
 | `POST /api/v1/demo/scenarios/{name}` | inject bounded demo scenario | development-only + demo.manage |
 
-The incident list/detail routes, M2 demo freshness route and four M3 action-proposal routes above are implemented. The separate timeline and diagnosis routes, older generic `/proposals` routes, generic demo scenario route and other resource operations remain planned. M2 timeline events are embedded in `GET /api/v1/incidents/{id}`. M2 run trigger accepts only `{}`, `{"parameters":{}}` or one of the fixed `demo_fault` codes `F02`, `F03`, `F04`; the header holds the `Idempotency-Key`. The illustrative trigger below is a future contract and is not accepted by the current API.
+The incident list/detail routes, M2 demo freshness route, four M3 action-proposal routes, and M4 contract/manifest routes above are implemented. The generic `GET/POST /api/v1/contracts` row is illustrative: only `GET /api/v1/contracts` is implemented; creation uses the dataset-specific version route. The separate timeline and diagnosis routes, older generic `/proposals` routes, generic demo scenario route and other resource operations remain planned. M2 timeline events are embedded in `GET /api/v1/incidents/{id}`. M2 run trigger accepts only `{}`, `{"parameters":{}}` or one of the fixed `demo_fault` codes `F02`, `F03`, `F04`; the header holds the `Idempotency-Key`. The illustrative trigger below is a future contract and is not accepted by the current API.
 
 ## Example trigger (illustrative)
 ```json

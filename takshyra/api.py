@@ -13,13 +13,16 @@ from sqlalchemy.orm import Session
 
 from takshyra.auth import Identity, executor, identity
 from takshyra.actions_api import router as actions_router
+from takshyra.contracts_api import active_orders, router as contracts_router
 from takshyra.config import Settings
 from takshyra.db import session
 from takshyra.incidents import record_observation
-from takshyra.models import Attempt, AuditEvent, Incident, IncidentEvent, Pipeline, QualityResult, Run, now
+from takshyra.models import Attempt, AuditEvent, ContractVersion, Incident, IncidentEvent, Pipeline, QualityResult, Run, now
+from takshyra.runner import read_manifest
 
 app = FastAPI(title="Takshyra Data Reliability Platform", version="0.1.0")
 app.include_router(actions_router)
+app.include_router(contracts_router)
 log = logging.getLogger(__name__)
 
 
@@ -78,10 +81,13 @@ def pipelines(principal: Identity = Depends(identity), db: Session = Depends(ses
 def run_view(db: Session, run: Run) -> dict:
     attempts = db.scalars(select(Attempt).where(Attempt.tenant_id == run.tenant_id, Attempt.run_id == run.id).order_by(Attempt.number)).all()
     checks = db.scalars(select(QualityResult).where(QualityResult.tenant_id == run.tenant_id, QualityResult.run_id == run.id).order_by(QualityResult.rule_id)).all()
+    contract = db.get(ContractVersion, run.contract_version_id) if run.contract_version_id else None
     return {
         "id": run.id, "pipeline_id": run.pipeline_id, "execution_status": run.status,
         "quality_status": run.quality_status, "publication_status": run.publication_status,
         "row_count": run.row_count, "manifest_path": run.manifest_path,
+        "contract_version": contract.version if contract else None,
+        "contract_hash": contract.definition_hash if contract else None,
         "error_code": run.error_code,
         "demo_fault": run.demo_fault, "next_attempt_at": run.next_attempt_at,
         "attempts": [{"number": a.number, "status": a.status, "error_code": a.error_code} for a in attempts],
@@ -100,6 +106,9 @@ def enqueue(
         raise HTTPException(404, "Pipeline not found")
     if pipeline.source_kind != "seed_orders_v1":
         raise HTTPException(422, "Pipeline kind unavailable")
+    pair = active_orders(db, principal.tenant_id)
+    if pair is None:
+        raise HTTPException(503, "Active contract unavailable")
     canonical = json.dumps({"pipeline_id": pipeline_id, "parameters": request.parameters, "demo_fault": request.demo_fault}, sort_keys=True, separators=(",", ":"))
     digest = hashlib.sha256(canonical.encode()).hexdigest()
     existing = db.scalar(select(Run).where(Run.tenant_id == principal.tenant_id, Run.idempotency_key == key))
@@ -107,7 +116,8 @@ def enqueue(
         if existing.payload_digest != digest:
             raise HTTPException(409, "Idempotency key reused with different payload")
         return run_view(db, existing)
-    run = Run(tenant_id=principal.tenant_id, pipeline_id=pipeline_id, idempotency_key=key, payload_digest=digest, demo_fault=request.demo_fault)
+    run = Run(tenant_id=principal.tenant_id, pipeline_id=pipeline_id, idempotency_key=key, payload_digest=digest,
+              demo_fault=request.demo_fault, contract_version_id=pair[1].id)
     db.add(run)
     db.flush()
     db.add(AuditEvent(tenant_id=principal.tenant_id, actor_id=principal.user_id, action="pipeline.run.enqueue", target_id=run.id, outcome="QUEUED"))
@@ -133,6 +143,33 @@ def get_run(run_id: str, principal: Identity = Depends(identity), db: Session = 
     if run is None:
         raise HTTPException(404, "Run not found")
     return run_view(db, run)
+
+
+@app.get("/api/v1/runs/{run_id}/manifest")
+def get_run_manifest(run_id: str, principal: Identity = Depends(identity), db: Session = Depends(session)):
+    run = db.scalar(select(Run).where(Run.id == run_id, Run.tenant_id == principal.tenant_id))
+    if run is None:
+        raise HTTPException(404, "Run not found")
+    if run.status != "SUCCEEDED" or run.publication_status not in {"PUBLISHED", "QUARANTINED", "HELD"}:
+        raise HTTPException(409, "Manifest unavailable")
+    manifest = read_manifest(Settings.from_env().output_dir, principal.tenant_id, run_id)
+    if manifest is None:
+        raise HTTPException(503, "Manifest unavailable")
+    contract = db.get(ContractVersion, run.contract_version_id) if run.contract_version_id else None
+    persisted = db.scalars(select(QualityResult).where(
+        QualityResult.tenant_id == principal.tenant_id, QualityResult.run_id == run_id,
+    )).all()
+    expected_checks = [{"rule_id": row.rule_id, "outcome": row.outcome,
+                        "expected": row.expected, "observed": row.observed} for row in persisted]
+    if (contract and (manifest.get("contract_hash") != contract.definition_hash or
+                      manifest.get("contract_version") != contract.version)) or \
+       manifest.get("publication_status") != run.publication_status or \
+       manifest.get("quality_status") != run.quality_status or \
+       sorted(manifest.get("checks", []), key=lambda item: item["rule_id"]) != sorted(
+           expected_checks, key=lambda item: item["rule_id"]):
+        raise HTTPException(503, "Manifest and run state disagree")
+    return {"run_id": run_id, "publication_status": run.publication_status,
+            "manifest": manifest}
 
 
 def incident_view(db: Session, incident: Incident, *, timeline: bool = False) -> dict:

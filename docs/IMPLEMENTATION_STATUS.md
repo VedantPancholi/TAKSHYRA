@@ -1,7 +1,7 @@
 # Implementation status — verified engineering record
 
 **Updated:** 2026-10-23
-**Stage:** M0–M3 local milestones complete for development. PostgreSQL migration and Compose smoke verification passed through M3 on 2026-10-23. M4 has not started.
+**Stage:** M0–M4 local milestones complete for development. PostgreSQL migration and Compose smoke verification passed through M4 on 2026-10-23.
 
 ## Reconnaissance
 
@@ -41,6 +41,13 @@
 - Local API tests cover allowed/denied actions, exact approval, tampering, expiry, self-approval, revoked approver role, cross-tenant access, forbidden client approval fields, duplicate execution, one retry per exhausted run, non-transient retry denial and local notification limit. The full migrated SQLite suite passed: 13 tests, one upstream Starlette/AnyIO deprecation warning. Ruff, documentation validation and `git diff --check` passed.
 - Existing PostgreSQL volume migrated to `0004_policy_actions (head)`. Compose M1, M2 and M3 smoke scripts passed. M3 smoke exercises ALLOW, DENY and REQUIRES_APPROVAL through the API, verifies effects, and sends concurrent execution requests for one annotation with only one matching incident timeline effect.
 
+## M4 implementation and verification
+
+- Selected slice: tenant-scoped `Dataset` and immutable API-created `ContractVersion`, run-bound contract identity, typed deterministic orders checks, explicit `PASS/PUBLISHED`, `FAIL/QUARANTINED` and `UNKNOWN/HELD` outcomes, and authenticated manifest metadata. Files: `takshyra/{contracts,contracts_api,api,models,runner,seed,worker}.py`, migration `0005_contracts`, `tests/test_contracts.py`, `scripts/smoke_m4.py`, Dockerfile, CI, contract example and docs. Dataset and contract rows are new; `runs.contract_version_id` is nullable for pre-M4 history and has a tenant-composite foreign key.
+- Security impact: only tenant members can read contract versions or manifests; only approver/admin can create the next version. Server chooses tenant, version and hash. No executable contract expressions, client-controlled paths or raw artifact downloads. A run pins its version at enqueue; the worker verifies stored canonical hash. PostgreSQL run status governs publication. Manifest API compares contract hash, publication/quality status and checks to DB evidence. Crash recovery checks source rows and persisted Parquet against the bound contract before reusing a manifest.
+- The synthetic v1 baseline is four rows. F04 drops one of four, producing `SUCCEEDED/FAIL/QUARANTINED`. A version without a baseline yields `SUCCEEDED/UNKNOWN/HELD` for otherwise clean data. Missing required fields fail the schema check; unexpected fields follow `allow_extra_fields`. Duplicate IDs, null rates, timestamp/decimal values and optional freshness are deterministic checks.
+- Local migrated SQLite integration/unit suite and PostgreSQL Compose M1–M4 smokes pass. M4 smoke uses demo-b and checks version binding, baseline-unknown hold and F04 quarantine. See [M4 runbook](40_M4_CONTRACTS.md). CI execution remains unverified here.
+
 ## Implemented and locally verified
 
 - Files added: `pyproject.toml`, `uv.lock`, `takshyra/{api,auth,config,db,models,runner,seed,worker}.py`, `alembic.ini`, `migrations/`, `tests/test_foundation.py`, `Dockerfile`, `compose.yaml`, `scripts/smoke.py`, `.github/workflows/m1.yml`, and `docs/37_M1_LOCAL_CORE.md`. Updated `.env.example`, `README.md`, `Makefile`, API/local docs and changelog.
@@ -76,13 +83,19 @@
 | M3 `docker compose exec -T api alembic current` | Exit 0; `0004_policy_actions (head)` on PostgreSQL. |
 | M3 `docker compose exec -T api python scripts/smoke.py` and `scripts/smoke_m2.py` | Exit 0; M1/M2 regression smokes passed. |
 | M3 `docker compose exec -T api python scripts/smoke_m3.py` | Exit 0; ALLOW, DENY, approval, execution, verification and concurrent duplicate claim passed. |
+| M4 `docker compose up --build -d --wait` | Exit 0; PostgreSQL, Redis, API and worker healthy. |
+| M4 `docker compose exec -T api alembic current` | Exit 0; `0005_contracts (head)` on PostgreSQL. |
+| M4 `docker compose exec -T api python scripts/smoke.py`, `smoke_m2.py`, `smoke_m3.py`, `smoke_m4.py` | Exit 0; M1–M4 smoke cases passed in order. |
+| M4 `uv run --locked --extra test python -m pytest -q --tb=short` | Exit 0; 17 passed, one upstream Starlette/AnyIO deprecation warning. |
+| M4 `uv run --locked --extra test ruff check takshyra tests migrations scripts` | Exit 0; all checks passed. |
+| M4 `uv run --locked python scripts/validate_blueprint.py` | Exit 0; 19 required files, 66 internal links and example JSON validated. |
 
 ## Security and remaining risks
 
 - No client-supplied execution path, role, tenant ID, code or SQL. Tenant membership and role come from persisted server records. Worker checks tenant and pipeline kind. Runs, attempts, quality and audit are durable DB records. Redis is only a wakeup hint.
 - Basic credentials are suitable only for loopback development. There is no TLS, production identity, rate limit, request byte limit, DB RLS, dedicated least-privilege DB roles or independent secret scan yet. Do not expose this stack to other hosts.
 - Database/filesystem publication is not atomic; deterministic manifests permit recovery of a crash after file write, but no artifact garbage collection is implemented. Output may remain on disk when a run fails after writing. Worker lease is five minutes with a maximum of two claims; a long transform may be reclaimed, and the fixed tiny fixture is the current bound.
-- M1–M3 local PostgreSQL/Compose exit gates passed. The stack remains development-only. CI execution, restore testing, metrics, production identity and operation outside loopback remain unverified or out of scope. M2 freshness injection is manual, and simulated 503 faults do not contact an HTTP source. M3 notifications are local DB records and the pause action is only simulated. `pipeline.retry_demo` verification proves durable enqueue, not downstream run success. Full incident resolution and customer-system recovery are not implemented. Next planned slice: M4 versioned contracts and publish gate on its own branch.
+- M1–M4 local PostgreSQL/Compose exit gates passed. The stack remains development-only. CI execution, restore testing, metrics, production identity and operation outside loopback remain unverified or out of scope. M2 freshness injection is manual, and simulated 503 faults do not contact an HTTP source. M3 notifications are local DB records and the pause action is only simulated. `pipeline.retry_demo` verification proves durable enqueue, not downstream run success. M4 gates only Takshyra's DB visibility and manifest API; it does not atomically publish to an external consumer. Full incident resolution and customer-system recovery are not implemented. Next planned slice: M5 lineage and impact on its own branch.
 
 ## Naming and repository handoff
 

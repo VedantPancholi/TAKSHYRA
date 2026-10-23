@@ -73,7 +73,9 @@ def test_migration_seed_auth_and_worker(local):
     result = completed.json()
     assert (result["execution_status"], result["quality_status"], result["publication_status"]) == ("SUCCEEDED", "PASS", "PUBLISHED")
     assert result["row_count"] == 4
-    assert len(result["quality_results"]) == 3
+    assert {check["rule_id"] for check in result["quality_results"]} == {
+        "schema", "schema_types", "row_count_ratio", "customer_null_rate", "order_id_duplicate_rate", "source_row_count_match",
+    }
     with Session(engine) as session:
         run = session.get(Run, run_id)
         assert read_manifest(settings.output_dir, run.tenant_id, run_id)["row_count"] == 4
@@ -131,7 +133,7 @@ def test_failure_and_crash_reconciliation(local, tmp_path, caplog):
     assert manifest.stat().st_mtime_ns == original_mtime
     with Session(engine) as session:
         run = session.get(Run, run_id)
-        assert run.status == "SUCCEEDED"
+        assert run.status == "SUCCEEDED", run.error_code
         assert [a.status for a in session.scalars(select(Attempt).where(Attempt.run_id == run_id).order_by(Attempt.number))] == ["TIMED_OUT", "SUCCEEDED"]
     headers["Idempotency-Key"] = "another-key-001"
     failed_id = client.post(f"/api/v1/pipelines/{pid}/runs", headers=headers, auth=credentials, json={}).json()["id"]
@@ -244,9 +246,11 @@ def test_row_drop_incident_evidence_and_authorization(local, tmp_path):
     assert settings.demo_passwords["demo-a-executor"] not in serialized
     assert settings.fixture_path not in serialized
     evidence = [event for event in detail["timeline"] if event["source_kind"] == "QUALITY_RESULT"]
-    assert len(evidence) == 1
+    assert len(evidence) == 2
     with Session(engine) as session:
-        assert session.get(QualityResult, evidence[0]["source_id"]).outcome == "FAIL"
+        assert {session.get(QualityResult, item["source_id"]).rule_id for item in evidence} == {
+            "row_count_ratio", "source_row_count_match",
+        }
     viewer_headers, viewer_credentials = auth("demo-a-viewer")
     assert client.get(f"/api/v1/incidents/{incident['id']}", headers=viewer_headers, auth=viewer_credentials).status_code == 200
     assert client.patch(f"/api/v1/incidents/{incident['id']}", headers=viewer_headers, auth=viewer_credentials, json={"status": "INVESTIGATING"}).status_code == 403
@@ -278,7 +282,7 @@ def test_row_drop_incident_evidence_and_authorization(local, tmp_path):
     assert process_one(null_settings, "null-quality-worker")
     items = client.get("/api/v1/incidents", headers=headers, auth=credentials).json()["items"]
     assert len(items) == 2
-    assert {item["error_code"] for item in items} == {"QUALITY_SOURCE_ROW_COUNT_MATCH", "QUALITY_CUSTOMER_ID_NULL_0"}
+    assert {item["error_code"] for item in items} == {"QUALITY_ROW_COUNT_RATIO", "QUALITY_CUSTOMER_NULL_RATE"}
 
 
 def test_freshness_miss_without_run_deduplicates(local):

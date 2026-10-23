@@ -1,4 +1,4 @@
-name: Local core and incidents
+name: Local core milestones
 on:
   push:
   pull_request:
@@ -11,7 +11,7 @@ jobs:
         with:
           python-version: "3.13"
       - run: uv sync --extra test --locked
-      - run: uv run --locked ruff check takshyra tests migrations scripts/smoke.py scripts/smoke_m2.py scripts/smoke_m3.py
+      - run: uv run --locked ruff check takshyra tests migrations scripts
       - run: uv run --locked python -m pytest -q
       - run: uv run --locked python scripts/validate_blueprint.py
   compose-smoke:
@@ -27,6 +27,7 @@ jobs:
       - run: docker compose exec -T api python scripts/smoke.py
       - run: docker compose exec -T api python scripts/smoke_m2.py
       - run: docker compose exec -T api python scripts/smoke_m3.py
+      - run: docker compose exec -T api python scripts/smoke_m4.py
       - if: always()
         run: docker compose logs --no-color --tail=100
       - if: always()

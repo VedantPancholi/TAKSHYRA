@@ -8,9 +8,10 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from takshyra.config import Settings
+from takshyra.contracts import SEED_CONTRACT, OrdersContract, canonical
 from takshyra.db import engine
 from takshyra.incidents import record_observation
-from takshyra.models import Attempt, AuditEvent, Pipeline, QualityResult, Run, now
+from takshyra.models import Attempt, AuditEvent, ContractVersion, Pipeline, QualityResult, Run, now
 from takshyra.runner import transform
 
 log = logging.getLogger(__name__)
@@ -85,6 +86,12 @@ def process_one(settings: Settings, owner: str | None = None) -> bool:
             pipeline = db.scalar(select(Pipeline).where(Pipeline.id == run.pipeline_id, Pipeline.tenant_id == tenant_id))
             if pipeline is None or pipeline.source_kind != "seed_orders_v1":
                 raise ValueError("PIPELINE_KIND_UNAVAILABLE")
+            version = db.get(ContractVersion, run.contract_version_id) if run.contract_version_id else None
+            if run.contract_version_id and (version is None or version.tenant_id != tenant_id):
+                raise ValueError("CONTRACT_UNAVAILABLE")
+            contract = OrdersContract.model_validate_json(version.definition_json) if version else SEED_CONTRACT
+            if version and canonical(contract)[1] != version.definition_hash:
+                raise ValueError("CONTRACT_TAMPERED")
         if run.demo_fault == "F02" and number < MAX_ATTEMPTS:
             error_code = "DEMO_TRANSIENT_503"
             retryable = True
@@ -95,6 +102,7 @@ def process_one(settings: Settings, owner: str | None = None) -> bool:
             result = transform(
                 settings.fixture_path, settings.output_dir, tenant_id, run_id,
                 drop_last_row=run.demo_fault == "F04",
+                contract=contract, contract_version=version.version if version else 1,
             )
     except ValueError as exc:
         error_code = str(exc) if str(exc).isupper() else "TRANSFORM_INVALID"
@@ -132,12 +140,12 @@ def process_one(settings: Settings, owner: str | None = None) -> bool:
             run.finished_at = now()
             run.row_count = result["row_count"]
             run.quality_status = result["quality_status"]
-            run.publication_status = "PUBLISHED" if result["quality_status"] == "PASS" else "QUARANTINED"
+            run.publication_status = result["publication_status"]
             run.manifest_path = str(__import__("pathlib").Path(settings.output_dir) / tenant_id / run_id / "manifest.json")
             failed_checks = []
             failed_rules = []
             for check in result["checks"]:
-                quality = QualityResult(tenant_id=tenant_id, run_id=run_id, rule_id=check["rule_id"], rule_version=1, outcome=check["outcome"], expected=check["expected"], observed=check["observed"])
+                quality = QualityResult(tenant_id=tenant_id, run_id=run_id, rule_id=check["rule_id"], rule_version=result["contract_version"], outcome=check["outcome"], expected=check["expected"], observed=check["observed"])
                 db.add(quality)
                 db.flush()
                 if quality.outcome == "FAIL":

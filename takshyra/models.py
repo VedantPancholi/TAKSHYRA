@@ -47,10 +47,37 @@ class Pipeline(Base):
     source_kind: Mapped[str] = mapped_column(String(32), nullable=False, default="seed_orders_v1")
 
 
+class Dataset(Base):
+    __tablename__ = "datasets"
+    __table_args__ = (UniqueConstraint("tenant_id", "id"), UniqueConstraint("tenant_id", "ref"))
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), nullable=False)
+    ref: Mapped[str] = mapped_column(String(128), nullable=False)
+    owner: Mapped[str] = mapped_column(String(128), nullable=False)
+    active_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+
+
+class ContractVersion(Base):
+    __tablename__ = "contract_versions"
+    __table_args__ = (
+        ForeignKeyConstraint(["tenant_id", "dataset_id"], ["datasets.tenant_id", "datasets.id"]),
+        UniqueConstraint("tenant_id", "dataset_id", "version"),
+        UniqueConstraint("tenant_id", "id"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    tenant_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    dataset_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    definition_json: Mapped[str] = mapped_column(Text, nullable=False)
+    definition_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
 class Run(Base):
     __tablename__ = "runs"
     __table_args__ = (
         ForeignKeyConstraint(["tenant_id", "pipeline_id"], ["pipelines.tenant_id", "pipelines.id"]),
+        ForeignKeyConstraint(["tenant_id", "contract_version_id"], ["contract_versions.tenant_id", "contract_versions.id"]),
         UniqueConstraint("tenant_id", "id"),
         UniqueConstraint("tenant_id", "idempotency_key"),
         Index("ix_runs_claim", "status", "lease_until"),
@@ -58,6 +85,7 @@ class Run(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
     tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), nullable=False)
     pipeline_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    contract_version_id: Mapped[str | None] = mapped_column(String(36))
     idempotency_key: Mapped[str] = mapped_column(String(128), nullable=False)
     payload_digest: Mapped[str] = mapped_column(String(64), nullable=False)
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="QUEUED")

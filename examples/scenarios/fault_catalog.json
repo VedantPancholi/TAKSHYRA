@@ -1,5 +1,5 @@
 {
-  "note": "Illustrative fault catalogue, not executable until Codex implements runner",
+  "note": "Scenario catalog; see implementation status for currently executable cases",
   "scenarios": [
     {
       "id": "F01",

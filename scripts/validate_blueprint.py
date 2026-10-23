@@ -7,13 +7,12 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 REQUIRED = [
-    'README.md', 'AGENTS.md', 'CODEX_START_HERE.md', 'CODEX_MASTER_PROMPT.md',
+    'README.md', 'CONTRIBUTING.md',
     'docs/00_INDEX.md', 'docs/04_ARCHITECTURE.md', 'docs/05_DOMAIN_MODEL.md',
     'docs/06_STATES_AND_EVENTS.md', 'docs/08_DATA_QUALITY.md',
     'docs/11_POLICY_AND_ACTIONS.md', 'docs/17_SECURITY_AND_THREAT_MODEL.md',
     'docs/24_ROADMAP.md', 'docs/25_ACCEPTANCE_GATES.md',
-    'docs/IMPLEMENTATION_STATUS.md', 'prompts/01_FOUNDATION.md',
-    'prompts/10_HARDEN_RELEASE.md', '.env.example',
+    'docs/IMPLEMENTATION_STATUS.md', '.env.example',
     'examples/events/sample_openlineage_event.json',
     'examples/scenarios/fault_catalog.json',
 ]

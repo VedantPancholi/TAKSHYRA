@@ -15,4 +15,4 @@ jobs:
         run: python scripts/validate_blueprint.py
 
 # This checks documentation structure only. Application tests and the
-# Compose smoke job are defined separately in m1.yml.
+# Compose smoke job are defined separately in local-core.yml.

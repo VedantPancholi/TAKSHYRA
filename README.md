@@ -25,11 +25,9 @@ Takshyra connects pipeline execution, batch/stream data quality, data contracts,
 - **Small, working increments**: vertical slices, verifiable tests, documented limitations.
 
 ## Open in this order
-1. [CODEX_START_HERE.md](CODEX_START_HERE.md) — first Codex session.
-2. [CODEX_MASTER_PROMPT.md](CODEX_MASTER_PROMPT.md) — complete implementation charter.
-3. [AGENTS.md](AGENTS.md) — repo-wide agent instructions.
-4. [docs/00_INDEX.md](docs/00_INDEX.md) — specification map.
-5. [docs/24_ROADMAP.md](docs/24_ROADMAP.md) — milestone gates.
+1. [docs/00_INDEX.md](docs/00_INDEX.md) — specification map.
+2. [docs/24_ROADMAP.md](docs/24_ROADMAP.md) — milestone gates.
+3. [CONTRIBUTING.md](CONTRIBUTING.md) — contribution and security expectations.
 
 ## Initial architecture
 - API/control plane: **FastAPI** modular monolith, **SQLAlchemy / Alembic**, PostgreSQL.

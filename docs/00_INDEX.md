@@ -17,11 +17,11 @@ The implemented M1 local core and commands are documented in [37_M1_LOCAL_CORE.m
 | Experience & QA | [19_UX_DESIGN.md](19_UX_DESIGN.md), [20_TESTING_AND_FAULT_LAB.md](20_TESTING_AND_FAULT_LAB.md), [21_EVALUATION.md](21_EVALUATION.md) |
 | Developer & cloud ops | [22_LOCAL_DEV.md](22_LOCAL_DEV.md), [23_DEPLOYMENT_AND_COST.md](23_DEPLOYMENT_AND_COST.md), [25_ACCEPTANCE_GATES.md](25_ACCEPTANCE_GATES.md), [26_BACKLOG.md](26_BACKLOG.md) |
 | Demos and strategy | [27_DEMO_PLAYBOOK.md](27_DEMO_PLAYBOOK.md), [28_GLOSSARY.md](28_GLOSSARY.md), [29_BRAND_AND_PRODUCT_STRATEGY.md](29_BRAND_AND_PRODUCT_STRATEGY.md) |
-| Change management | [31_DECISIONS_AND_OPEN_QUESTIONS.md](31_DECISIONS_AND_OPEN_QUESTIONS.md), [32_TECH_LICENSE_NOTES.md](32_TECH_LICENSE_NOTES.md), [33_ORIGINAL_BLUEPRINT_MAPPING.md](33_ORIGINAL_BLUEPRINT_MAPPING.md) |
+| Change management | [31_DECISIONS_AND_OPEN_QUESTIONS.md](31_DECISIONS_AND_OPEN_QUESTIONS.md), [32_TECH_LICENSE_NOTES.md](32_TECH_LICENSE_NOTES.md), [34_REPOSITORY_GUIDE.md](34_REPOSITORY_GUIDE.md) |
 
 ## Source-of-truth hierarchy
-1. Security and invariants: `AGENTS.md`, [17_SECURITY_AND_THREAT_MODEL.md](17_SECURITY_AND_THREAT_MODEL.md), [11_POLICY_AND_ACTIONS.md](11_POLICY_AND_ACTIONS.md).
-2. Current approved milestone: [24_ROADMAP.md](24_ROADMAP.md) and associated `prompts/` file.
+1. Security and invariants: [17_SECURITY_AND_THREAT_MODEL.md](17_SECURITY_AND_THREAT_MODEL.md), [11_POLICY_AND_ACTIONS.md](11_POLICY_AND_ACTIONS.md), and [CONTRIBUTING.md](../CONTRIBUTING.md).
+2. Current approved milestone: [24_ROADMAP.md](24_ROADMAP.md) and its acceptance gate.
 3. Domain/API specifications: docs 04–16.
 4. Live implementation behavior and tests; discrepancies require doc updates and explicit ADR.
 

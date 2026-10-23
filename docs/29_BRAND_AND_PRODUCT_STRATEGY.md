@@ -20,7 +20,7 @@ The product category remains a Data Reliability Control Plane. The value proposi
 - Use **TAKSHYRA** for the primary brand mark and **Takshyra** in prose and component names.
 - Use **Takshyra Core** for the implemented developer runtime. The Python distribution is `takshyra-core`; imports use `takshyra`.
 - Do not label deterministic checks or templates as Takshyra AI or Insight. Do not label a proposed or approved action as a verified Guardian recovery.
-- “Autonomous recovery” is a product direction, not a present capability or permission. The security and policy gates in `AGENTS.md`, `docs/11_POLICY_AND_ACTIONS.md` and `docs/17_SECURITY_AND_THREAT_MODEL.md` still apply before any mutating recovery action.
+- “Autonomous recovery” is a product direction, not a present capability or permission. The security and policy gates in `docs/11_POLICY_AND_ACTIONS.md` and `docs/17_SECURITY_AND_THREAT_MODEL.md` still apply before any mutating recovery action.
 
 ## Commercial validation
 

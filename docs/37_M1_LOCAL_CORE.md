@@ -8,7 +8,7 @@ This is a development-only, CPU local slice. It has no production identity provi
 
 ## Fresh checkout commands
 
-Choose five different random, development-only passwords of at least 16 characters in `.env`: `POSTGRES_PASSWORD`, `DEMO_A_EXECUTOR_PASSWORD`, `DEMO_A_VIEWER_PASSWORD`, `DEMO_B_EXECUTOR_PASSWORD`, `DEMO_B_VIEWER_PASSWORD`. The template values are rejected by application configuration. Keep `.env` out of source control. The API is bound to `127.0.0.1:8000`; Basic credentials travel over local HTTP and must not be exposed on a network.
+Choose seven different random, development-only passwords of at least 16 characters in `.env`: `POSTGRES_PASSWORD`, `DEMO_A_EXECUTOR_PASSWORD`, `DEMO_A_VIEWER_PASSWORD`, `DEMO_A_APPROVER_PASSWORD`, `DEMO_B_EXECUTOR_PASSWORD`, `DEMO_B_VIEWER_PASSWORD`, `DEMO_B_APPROVER_PASSWORD`. The template values are rejected by application configuration. Keep `.env` out of source control. The API is bound to `127.0.0.1:8000`; Basic credentials travel over local HTTP and must not be exposed on a network.
 
 PowerShell:
 
@@ -40,7 +40,7 @@ With uv and Python 3.13 installed, `uv sync --extra test --python 3.13`, then `u
 
 ## Implemented HTTP routes
 
-All `/api/v1` routes require HTTP Basic credentials plus `X-Tenant-Slug`. Seeded usernames are `demo-a-executor`, `demo-a-viewer`, `demo-b-executor`, and `demo-b-viewer`, each with its corresponding `.env` password. The supplied tenant slug must match a persisted membership. Viewer role can read but cannot enqueue.
+All `/api/v1` routes require HTTP Basic credentials plus `X-Tenant-Slug`. Seeded usernames include an executor, viewer and approver for each of `demo-a` and `demo-b`, each with its corresponding `.env` password. The supplied tenant slug must match a persisted membership. Viewer role can read but cannot enqueue.
 
 | Route | Behavior |
 |---|---|

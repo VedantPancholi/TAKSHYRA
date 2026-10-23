@@ -12,12 +12,14 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from takshyra.auth import Identity, executor, identity
+from takshyra.actions_api import router as actions_router
 from takshyra.config import Settings
 from takshyra.db import session
 from takshyra.incidents import record_observation
 from takshyra.models import Attempt, AuditEvent, Incident, IncidentEvent, Pipeline, QualityResult, Run, now
 
 app = FastAPI(title="Takshyra Data Reliability Platform", version="0.1.0")
+app.include_router(actions_router)
 log = logging.getLogger(__name__)
 
 
@@ -154,6 +156,7 @@ def incident_view(db: Session, incident: Incident, *, timeline: bool = False) ->
         result["timeline_truncated"] = len(events) > 100
         result["timeline"] = [
             {"kind": event.kind, "code": event.code, "source_kind": event.source_kind,
+             "safe_detail": event.safe_detail,
              "source_id": event.source_id, "occurred_at": event.occurred_at}
             for event in events[:100]
         ]

@@ -1,7 +1,7 @@
 # Implementation status — verified engineering record
 
-**Updated:** 2026-10-10
-**Stage:** M0, M1 local core and M2 incident fault lab complete for local development. PostgreSQL migration and Compose smoke verification passed on 2026-10-10. M3 has not started.
+**Updated:** 2026-10-23
+**Stage:** M0–M3 local milestones complete for development. PostgreSQL migration and Compose smoke verification passed through M3 on 2026-10-23. M4 has not started.
 
 ## Reconnaissance
 
@@ -34,6 +34,13 @@
 - Retry schedule is durable in PostgreSQL with 1 then 2 second delays. Three exhausted leases mark the run timed out and open an incident. Incident fingerprints include tenant, pipeline, category, error code, provenance and UTC date; repeated alerts within that day increment the count and append timeline observations. Diagnosis remains explicitly `UNKNOWN`.
 - Local migrated SQLite integration suite: 10 passed, one upstream Starlette/AnyIO deprecation warning. Covers retries/deadline, cap, crash recovery, quality evidence, daily dedup observations, tenant isolation, viewer denial, owner denial, forbidden resolution and exhausted leases. PostgreSQL migration `0003_incident_owner (head)` and both M1/M2 Compose smoke scripts passed. See [M2 runbook](38_M2_INCIDENTS.md).
 
+## M3 implementation and verification
+
+- Selected slice: server-authoritative `ALLOW`, `DENY` and `REQUIRES_APPROVAL` policy; exact-payload approval; `incident.annotate`, `notification.emit_local`, bounded `pipeline.retry_demo`, and simulated `pipeline.pause_demo`; leased, idempotent effects and independent database verification. Files: `takshyra/{actions,actions_api,api,auth,config,models,seed}.py` as applicable, migration `0004_policy_actions`, API/Compose/CI config, tests, `scripts/smoke_m3.py`, and [M3 runbook](39_M3_POLICY_ACTIONS.md). The new tables persist proposals, timeline and effects; runs gain a unique source-retry link; incident events gain safe note detail.
+- Two approver accounts are seeded with distinct local passwords. The requester cannot approve their own proposal. Policy is versioned `m3-v1`; the digest binds schema version, tenant, requester, action, target, validated parameters, policy version and expiry. Membership, digest, expiry, policy and target preconditions are checked again before applying an effect. Unknown actions, arbitrary shell/SQL/cloud work, cross-tenant targets, non-transient retries and exhausted retry budgets fail closed.
+- Local API tests cover allowed/denied actions, exact approval, tampering, expiry, self-approval, revoked approver role, cross-tenant access, forbidden client approval fields, duplicate execution, one retry per exhausted run, non-transient retry denial and local notification limit. The full migrated SQLite suite passed: 13 tests, one upstream Starlette/AnyIO deprecation warning. Ruff, documentation validation and `git diff --check` passed.
+- Existing PostgreSQL volume migrated to `0004_policy_actions (head)`. Compose M1, M2 and M3 smoke scripts passed. M3 smoke exercises ALLOW, DENY and REQUIRES_APPROVAL through the API, verifies effects, and sends concurrent execution requests for one annotation with only one matching incident timeline effect.
+
 ## Implemented and locally verified
 
 - Files added: `pyproject.toml`, `uv.lock`, `takshyra/{api,auth,config,db,models,runner,seed,worker}.py`, `alembic.ini`, `migrations/`, `tests/test_foundation.py`, `Dockerfile`, `compose.yaml`, `scripts/smoke.py`, `.github/workflows/m1.yml`, and `docs/37_M1_LOCAL_CORE.md`. Updated `.env.example`, `README.md`, `Makefile`, API/local docs and changelog.
@@ -62,13 +69,20 @@
 | M2 `docker compose exec -T api alembic current` | Exit 0; `0003_incident_owner (head)` on existing PostgreSQL volume. |
 | M2 `docker compose exec -T api python scripts/smoke.py` | Exit 0; M1 four-row Parquet regression smoke passed. |
 | M2 `docker compose exec -T api python scripts/smoke_m2.py` | Exit 0; F02 retry, F03 execution incident, F04 quality incident and F07 freshness incident passed through Compose. |
+| M3 `uv run --locked --extra test python -m pytest -q` with workspace cache | Exit 0; 13 passed, one upstream deprecation warning. |
+| M3 `uv run --locked --extra test ruff check takshyra tests migrations scripts` | Exit 0; all checks passed. |
+| M3 `uv run --locked python scripts/validate_blueprint.py` | Exit 0; 19 required files, 61 internal links and example JSON validated. |
+| M3 `docker compose up --build -d --wait` | Exit 0; PostgreSQL, Redis, API and worker healthy. |
+| M3 `docker compose exec -T api alembic current` | Exit 0; `0004_policy_actions (head)` on PostgreSQL. |
+| M3 `docker compose exec -T api python scripts/smoke.py` and `scripts/smoke_m2.py` | Exit 0; M1/M2 regression smokes passed. |
+| M3 `docker compose exec -T api python scripts/smoke_m3.py` | Exit 0; ALLOW, DENY, approval, execution, verification and concurrent duplicate claim passed. |
 
 ## Security and remaining risks
 
 - No client-supplied execution path, role, tenant ID, code or SQL. Tenant membership and role come from persisted server records. Worker checks tenant and pipeline kind. Runs, attempts, quality and audit are durable DB records. Redis is only a wakeup hint.
 - Basic credentials are suitable only for loopback development. There is no TLS, production identity, rate limit, request byte limit, DB RLS, dedicated least-privilege DB roles or independent secret scan yet. Do not expose this stack to other hosts.
 - Database/filesystem publication is not atomic; deterministic manifests permit recovery of a crash after file write, but no artifact garbage collection is implemented. Output may remain on disk when a run fails after writing. Worker lease is five minutes with a maximum of two claims; a long transform may be reclaimed, and the fixed tiny fixture is the current bound.
-- M1 and M2 local PostgreSQL/Compose exit gates passed. The stack remains development-only. CI execution, restore testing, metrics, production identity and operation outside loopback remain unverified or out of scope. M2 freshness injection is manual, and simulated 503 faults do not contact an HTTP source. Incident resolution, approval and actions wait for later milestones. The next planned vertical slice is M3 policy and governed recovery, on its own feature branch.
+- M1–M3 local PostgreSQL/Compose exit gates passed. The stack remains development-only. CI execution, restore testing, metrics, production identity and operation outside loopback remain unverified or out of scope. M2 freshness injection is manual, and simulated 503 faults do not contact an HTTP source. M3 notifications are local DB records and the pause action is only simulated. `pipeline.retry_demo` verification proves durable enqueue, not downstream run success. Full incident resolution and customer-system recovery are not implemented. Next planned slice: M4 versioned contracts and publish gate on its own branch.
 
 ## Naming and repository handoff
 

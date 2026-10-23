@@ -69,6 +69,7 @@ class Run(Base):
     manifest_path: Mapped[str | None] = mapped_column(String(512))
     error_code: Mapped[str | None] = mapped_column(String(64))
     demo_fault: Mapped[str | None] = mapped_column(String(3))
+    retry_of_run_id: Mapped[str | None] = mapped_column(ForeignKey("runs.id"), unique=True)
     next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -154,4 +155,61 @@ class IncidentEvent(Base):
     source_kind: Mapped[str] = mapped_column(String(24), nullable=False)
     source_id: Mapped[str] = mapped_column(String(36), nullable=False)
     actor_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    safe_detail: Mapped[str | None] = mapped_column(String(256))
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class ActionProposal(Base):
+    __tablename__ = "action_proposals"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "id"),
+        UniqueConstraint("tenant_id", "idempotency_key"),
+        Index("ix_action_proposals_tenant_created", "tenant_id", "created_at"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), nullable=False)
+    requester_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False)
+    approver_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    action_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    target_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    parameters_json: Mapped[str] = mapped_column(Text, nullable=False)
+    payload_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    policy_decision: Mapped[str] = mapped_column(String(24), nullable=False)
+    policy_reason: Mapped[str] = mapped_column(String(64), nullable=False)
+    policy_version: Mapped[str] = mapped_column(String(16), nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(128), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    approved_digest: Mapped[str | None] = mapped_column(String(64))
+    lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    verification_status: Mapped[str | None] = mapped_column(String(16))
+    effect_ref_id: Mapped[str | None] = mapped_column(String(36))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ActionEvent(Base):
+    __tablename__ = "action_events"
+    __table_args__ = (
+        ForeignKeyConstraint(["tenant_id", "proposal_id"], ["action_proposals.tenant_id", "action_proposals.id"]),
+        Index("ix_action_events_timeline", "proposal_id", "occurred_at"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    tenant_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    proposal_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    kind: Mapped[str] = mapped_column(String(24), nullable=False)
+    code: Mapped[str] = mapped_column(String(64), nullable=False)
+    actor_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class ActionEffect(Base):
+    __tablename__ = "action_effects"
+    __table_args__ = (ForeignKeyConstraint(["tenant_id", "proposal_id"], ["action_proposals.tenant_id", "action_proposals.id"]),)
+    proposal_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    effect_kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    target_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    safe_detail: Mapped[str] = mapped_column(String(256), nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)

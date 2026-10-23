@@ -21,7 +21,7 @@ def seed() -> None:
                 db.flush()
             if not db.scalar(select(Pipeline).where(Pipeline.tenant_id == tenant.id, Pipeline.name == "orders_csv_v1")):
                 db.add(Pipeline(tenant_id=tenant.id, name="orders_csv_v1", source_kind="seed_orders_v1"))
-            for suffix, role in (("executor", "executor"), ("viewer", "viewer")):
+            for suffix, role in (("executor", "executor"), ("viewer", "viewer"), ("approver", "approver")):
                 name = f"{slug}-{suffix}"
                 user = db.scalar(select(User).where(User.username == name))
                 if user is None:

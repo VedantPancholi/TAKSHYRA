@@ -13,7 +13,7 @@ from takshyra import db
 from takshyra.api import app
 from takshyra.auth import hash_password
 from takshyra.config import Settings
-from takshyra.models import Attempt, Membership, Pipeline, QualityResult, Run, User, now
+from takshyra.models import ActionEffect, ActionProposal, Attempt, IncidentEvent, Membership, Pipeline, QualityResult, Run, User, now
 from takshyra.runner import read_manifest, transform
 from takshyra.seed import seed
 from takshyra.worker import claim, process_one
@@ -26,7 +26,7 @@ def local(tmp_path, monkeypatch):
     url = f"sqlite:///{(tmp_path / 'test.sqlite').as_posix()}"
     monkeypatch.setenv("DATABASE_URL", url)
     monkeypatch.setenv("APP_ENV", "development")
-    for index, name in enumerate(("A_EXECUTOR", "A_VIEWER", "B_EXECUTOR", "B_VIEWER")):
+    for index, name in enumerate(("A_EXECUTOR", "A_VIEWER", "B_EXECUTOR", "B_VIEWER", "A_APPROVER", "B_APPROVER")):
         monkeypatch.setenv(f"DEMO_{name}_PASSWORD", f"local-password-{index}-123456789")
     monkeypatch.setenv("OUTPUT_DIR", str(tmp_path / "output"))
     monkeypatch.setenv("FIXTURE_PATH", str(ROOT / "seed" / "synthetic_orders.csv"))
@@ -43,7 +43,7 @@ def local(tmp_path, monkeypatch):
 
 
 def auth(user="demo-a-executor", tenant="demo-a"):
-    passwords = {"demo-a-executor": "local-password-0-123456789", "demo-a-viewer": "local-password-1-123456789", "demo-b-executor": "local-password-2-123456789", "demo-b-viewer": "local-password-3-123456789"}
+    passwords = {"demo-a-executor": "local-password-0-123456789", "demo-a-viewer": "local-password-1-123456789", "demo-b-executor": "local-password-2-123456789", "demo-b-viewer": "local-password-3-123456789", "demo-a-approver": "local-password-4-123456789", "demo-b-approver": "local-password-5-123456789"}
     return {"X-Tenant-Slug": tenant, "Idempotency-Key": "stable-key-001"}, (user, passwords[user])
 
 
@@ -326,3 +326,174 @@ def test_expired_leases_stop_and_open_incident(local):
     incidents = client.get("/api/v1/incidents", headers=headers, auth=credentials).json()["items"]
     assert len(incidents) == 1
     assert incidents[0]["error_code"] == "LEASE_EXHAUSTED"
+
+
+def test_m3_allow_denial_idempotency_and_local_effects(local):
+    _, engine = local
+    client = TestClient(app)
+    pid = pipeline_id(client)
+    headers, credentials = auth()
+    incident = client.post(f"/api/v1/demo/pipelines/{pid}/freshness-miss", headers=headers, auth=credentials, json={}).json()
+    headers["Idempotency-Key"] = "m3-annotate-001"
+    body = {"action_type": "incident.annotate", "target_id": incident["id"], "parameters": {"note": "<b>checked</b>"}}
+    proposed = client.post("/api/v1/action-proposals", headers=headers, auth=credentials, json=body)
+    assert proposed.status_code == 201
+    proposal = proposed.json()
+    assert (proposal["policy_decision"], proposal["status"]) == ("ALLOW", "READY")
+    repeated = client.post("/api/v1/action-proposals", headers=headers, auth=credentials, json=body)
+    assert repeated.json()["id"] == proposal["id"]
+    executed = client.post(f"/api/v1/action-proposals/{proposal['id']}/execute", headers=headers, auth=credentials)
+    assert executed.status_code == 200
+    assert (executed.json()["status"], executed.json()["verification_status"]) == ("VERIFIED", "VERIFIED")
+    assert client.post(f"/api/v1/action-proposals/{proposal['id']}/execute", headers=headers, auth=credentials).status_code == 200
+    with Session(engine) as session:
+        notes = session.scalars(select(IncidentEvent).where(IncidentEvent.source_id == proposal["id"], IncidentEvent.kind == "ANNOTATED")).all()
+        assert len(notes) == 1 and notes[0].safe_detail == "&lt;b&gt;checked&lt;/b&gt;"
+        assert session.get(ActionEffect, proposal["id"])
+    viewer_headers, viewer_credentials = auth("demo-a-viewer")
+    assert client.post("/api/v1/action-proposals", headers=viewer_headers, auth=viewer_credentials, json=body).status_code == 403
+    b_headers, b_credentials = auth("demo-b-executor", "demo-b")
+    assert client.get(f"/api/v1/action-proposals/{proposal['id']}", headers=b_headers, auth=b_credentials).status_code == 404
+    b_headers["Idempotency-Key"] = "m3-cross-tenant"
+    hidden = client.post("/api/v1/action-proposals", headers=b_headers, auth=b_credentials, json=body).json()
+    assert (hidden["policy_decision"], hidden["policy_reason"]) == ("DENY", "TARGET_UNAVAILABLE")
+    assert client.post("/api/v1/action-proposals", headers=headers, auth=credentials,
+                       json={**body, "approved": True}).status_code == 422
+    headers["Idempotency-Key"] = "m3-unknown-001"
+    unknown = client.post("/api/v1/action-proposals", headers=headers, auth=credentials,
+                          json={"action_type": "shell.execute", "target_id": incident["id"], "parameters": {}})
+    assert unknown.status_code == 201 and unknown.json()["policy_decision"] == "DENY"
+    assert client.post(f"/api/v1/action-proposals/{unknown.json()['id']}/execute", headers=headers, auth=credentials).status_code == 409
+    with Session(engine) as session:
+        assert session.get(ActionEffect, unknown.json()["id"]) is None
+    headers["Idempotency-Key"] = "m3-notify-001"
+    notify = client.post("/api/v1/action-proposals", headers=headers, auth=credentials,
+                         json={"action_type": "notification.emit_local", "target_id": incident["id"],
+                               "parameters": {"message_code": "INCIDENT_OPEN"}}).json()
+    assert notify["policy_decision"] == "ALLOW"
+    assert client.post(f"/api/v1/action-proposals/{notify['id']}/execute", headers=headers, auth=credentials).json()["verification_status"] == "VERIFIED"
+    for number in (2, 3):
+        headers["Idempotency-Key"] = f"m3-notify-{number:03d}"
+        next_note = client.post("/api/v1/action-proposals", headers=headers, auth=credentials,
+                                json={"action_type": "notification.emit_local", "target_id": incident["id"],
+                                      "parameters": {"message_code": "INCIDENT_OPEN"}}).json()
+        assert next_note["policy_decision"] == "ALLOW"
+        assert client.post(f"/api/v1/action-proposals/{next_note['id']}/execute", headers=headers, auth=credentials).json()["verification_status"] == "VERIFIED"
+    headers["Idempotency-Key"] = "m3-notify-004"
+    limited = client.post("/api/v1/action-proposals", headers=headers, auth=credentials,
+                          json={"action_type": "notification.emit_local", "target_id": incident["id"],
+                                "parameters": {"message_code": "INCIDENT_OPEN"}}).json()
+    assert (limited["policy_decision"], limited["policy_reason"]) == ("DENY", "LOCAL_NOTIFICATION_LIMIT")
+
+
+def test_m3_approval_tamper_expiry_and_role_checks(local):
+    _, engine = local
+    client = TestClient(app)
+    pid = pipeline_id(client)
+    headers, credentials = auth()
+    approver_headers, approver_credentials = auth("demo-a-approver")
+    body = {"action_type": "pipeline.pause_demo", "target_id": pid, "parameters": {}}
+    headers["Idempotency-Key"] = "m3-pause-001"
+    proposal = client.post("/api/v1/action-proposals", headers=headers, auth=credentials, json=body).json()
+    assert (proposal["policy_decision"], proposal["status"]) == ("REQUIRES_APPROVAL", "AWAITING_APPROVAL")
+    assert client.post(f"/api/v1/action-proposals/{proposal['id']}/execute", headers=headers, auth=credentials).status_code == 409
+    assert client.post(f"/api/v1/action-proposals/{proposal['id']}/approve", headers=headers, auth=credentials).status_code == 403
+    approved = client.post(f"/api/v1/action-proposals/{proposal['id']}/approve", headers=approver_headers, auth=approver_credentials)
+    assert approved.status_code == 200 and approved.json()["status"] == "APPROVED"
+    executed = client.post(f"/api/v1/action-proposals/{proposal['id']}/execute", headers=headers, auth=credentials)
+    assert executed.status_code == 200 and executed.json()["verification_status"] == "VERIFIED"
+    with Session(engine) as session:
+        effect = session.get(ActionEffect, proposal["id"])
+        assert effect.safe_detail == "SIMULATED_PAUSE_ONLY"
+        assert session.get(Pipeline, pid).source_kind == "seed_orders_v1"
+    b_headers, b_credentials = auth("demo-b-approver", "demo-b")
+    assert client.get(f"/api/v1/action-proposals/{proposal['id']}", headers=b_headers, auth=b_credentials).status_code == 404
+
+    headers["Idempotency-Key"] = "m3-pause-tamper"
+    tampered = client.post("/api/v1/action-proposals", headers=headers, auth=credentials, json=body).json()
+    assert client.post(f"/api/v1/action-proposals/{tampered['id']}/approve", headers=approver_headers, auth=approver_credentials).status_code == 200
+    with Session(engine) as session:
+        row = session.get(ActionProposal, tampered["id"])
+        row.parameters_json = '{"unexpected":"changed"}'
+        session.commit()
+    assert client.post(f"/api/v1/action-proposals/{tampered['id']}/execute", headers=headers, auth=credentials).status_code == 409
+    with Session(engine) as session:
+        assert session.get(ActionEffect, tampered["id"]) is None
+
+    headers["Idempotency-Key"] = "m3-pause-expired"
+    expired = client.post("/api/v1/action-proposals", headers=headers, auth=credentials, json=body).json()
+    with Session(engine) as session:
+        row = session.get(ActionProposal, expired["id"])
+        row.expires_at = now() - timedelta(seconds=1)
+        session.commit()
+    assert client.post(f"/api/v1/action-proposals/{expired['id']}/approve", headers=approver_headers, auth=approver_credentials).status_code == 409
+
+    headers["Idempotency-Key"] = "m3-pause-revoked"
+    revoked = client.post("/api/v1/action-proposals", headers=headers, auth=credentials, json=body).json()
+    assert client.post(f"/api/v1/action-proposals/{revoked['id']}/approve", headers=approver_headers, auth=approver_credentials).status_code == 200
+    with Session(engine) as session:
+        approver = session.scalar(select(User).where(User.username == "demo-a-approver"))
+        membership = session.scalar(select(Membership).where(Membership.user_id == approver.id))
+        membership.role = "viewer"
+        session.commit()
+    assert client.post(f"/api/v1/action-proposals/{revoked['id']}/execute", headers=headers, auth=credentials).status_code == 403
+
+    with Session(engine) as session:
+        approver = session.scalar(select(User).where(User.username == "demo-a-approver"))
+        session.scalar(select(Membership).where(Membership.user_id == approver.id)).role = "approver"
+        session.commit()
+    headers["Idempotency-Key"] = "m3-pause-self"
+    self_proposal = client.post("/api/v1/action-proposals", headers=headers, auth=credentials, json=body).json()
+    with Session(engine) as session:
+        requester = session.scalar(select(User).where(User.username == "demo-a-executor"))
+        session.scalar(select(Membership).where(Membership.user_id == requester.id)).role = "admin"
+        session.commit()
+    assert client.post(f"/api/v1/action-proposals/{self_proposal['id']}/approve", headers=headers, auth=credentials).status_code == 403
+
+    headers["Idempotency-Key"] = "m3-pause-digest"
+    digest_proposal = client.post("/api/v1/action-proposals", headers=headers, auth=credentials, json=body).json()
+    assert client.post(f"/api/v1/action-proposals/{digest_proposal['id']}/approve", headers=approver_headers, auth=approver_credentials).status_code == 200
+    with Session(engine) as session:
+        row = session.get(ActionProposal, digest_proposal["id"])
+        row.approved_digest = "0" * 64
+        session.commit()
+    assert client.post(f"/api/v1/action-proposals/{digest_proposal['id']}/execute", headers=headers, auth=credentials).status_code == 409
+    with Session(engine) as session:
+        assert session.get(ActionEffect, digest_proposal["id"]) is None
+
+
+def test_m3_bounded_retry_and_non_transient_denial(local):
+    _, engine = local
+    client = TestClient(app)
+    pid = pipeline_id(client)
+    headers, credentials = auth()
+    approver_headers, approver_credentials = auth("demo-a-approver")
+    source_id = client.post(f"/api/v1/pipelines/{pid}/runs", headers=headers, auth=credentials, json={}).json()["id"]
+    for number in (1, 2, 3):
+        with Session(engine) as session:
+            assert claim(session, f"m3-expired-{number}")
+            run = session.get(Run, source_id)
+            run.lease_until = now() - timedelta(seconds=1)
+            session.commit()
+    with Session(engine) as session:
+        assert claim(session, "m3-expired-final") is None
+    headers["Idempotency-Key"] = "m3-retry-001"
+    body = {"action_type": "pipeline.retry_demo", "target_id": source_id, "parameters": {}}
+    proposal = client.post("/api/v1/action-proposals", headers=headers, auth=credentials, json=body).json()
+    assert proposal["policy_decision"] == "REQUIRES_APPROVAL"
+    assert client.post(f"/api/v1/action-proposals/{proposal['id']}/approve", headers=approver_headers, auth=approver_credentials).status_code == 200
+    executed = client.post(f"/api/v1/action-proposals/{proposal['id']}/execute", headers=headers, auth=credentials)
+    assert executed.status_code == 200 and executed.json()["verification_status"] == "VERIFIED"
+    retry_id = executed.json()["effect_ref_id"]
+    with Session(engine) as session:
+        assert session.get(Run, retry_id).retry_of_run_id == source_id
+    assert client.post(f"/api/v1/action-proposals/{proposal['id']}/execute", headers=headers, auth=credentials).json()["effect_ref_id"] == retry_id
+    with Session(engine) as session:
+        assert len(session.scalars(select(Run).where(Run.retry_of_run_id == source_id)).all()) == 1
+    headers["Idempotency-Key"] = "m3-retry-again"
+    denied = client.post("/api/v1/action-proposals", headers=headers, auth=credentials, json=body).json()
+    assert (denied["policy_decision"], denied["policy_reason"]) == ("DENY", "RETRY_BUDGET_EXHAUSTED")
+    headers["Idempotency-Key"] = "m3-retry-nontransient"
+    denied_other = client.post("/api/v1/action-proposals", headers=headers, auth=credentials,
+                               json={"action_type": "pipeline.retry_demo", "target_id": retry_id, "parameters": {}}).json()
+    assert (denied_other["policy_decision"], denied_other["policy_reason"]) == ("DENY", "NON_TRANSIENT_FAILURE")

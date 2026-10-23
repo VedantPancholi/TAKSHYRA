@@ -15,10 +15,10 @@ class Settings:
     def from_env(cls) -> "Settings":
         env = os.getenv("APP_ENV")
         if env != "development":
-            raise RuntimeError("M1 supports development only; production identity is not configured")
+            raise RuntimeError("Local milestones support development only; production identity is not configured")
         demo_passwords = {}
         for slug in ("demo-a", "demo-b"):
-            for role in ("executor", "viewer"):
+            for role in ("executor", "viewer", "approver"):
                 name = f"{slug}-{role}"
                 key = f"DEMO_{slug[-1].upper()}_{role.upper()}_PASSWORD"
                 password = os.getenv(key, "")

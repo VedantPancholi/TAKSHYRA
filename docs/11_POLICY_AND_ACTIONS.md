@@ -1,5 +1,7 @@
 # Policy engine, authorization, approvals and action registry
 
+The implemented M3 local subset is documented in [39_M3_POLICY_ACTIONS.md](39_M3_POLICY_ACTIONS.md). This document also contains later design targets, not all of which are implemented.
+
 ## Policy result
 `ALLOW | DENY | REQUIRES_APPROVAL`, with `policy_id/version`, reason codes, risk class, actor, target scope and evaluated time. Policy must be deterministic and separate from LLM. Re-check policy and principal rights immediately before action execution.
 

@@ -1,6 +1,6 @@
 # HTTP API contract (planned)
 
-Implemented M1 routes are documented in [37_M1_LOCAL_CORE.md](37_M1_LOCAL_CORE.md), and M2 incident routes in [38_M2_INCIDENTS.md](38_M2_INCIDENTS.md). The remaining routes and global conventions below are future targets; do not infer current behavior from this planned contract.
+Implemented M1 routes are documented in [37_M1_LOCAL_CORE.md](37_M1_LOCAL_CORE.md), M2 incident routes in [38_M2_INCIDENTS.md](38_M2_INCIDENTS.md), and M3 action routes in [39_M3_POLICY_ACTIONS.md](39_M3_POLICY_ACTIONS.md). The remaining routes and global conventions below are future targets; do not infer current behavior from this planned contract.
 
 ## Global conventions
 - Prefix `/api/v1`. Typed OpenAPI models. JSON. UUID IDs. ISO-8601 UTC timestamps.
@@ -27,6 +27,10 @@ Implemented M1 routes are documented in [37_M1_LOCAL_CORE.md](37_M1_LOCAL_CORE.m
 | `GET /api/v1/incidents`, `/{id}` | incidents/evidence | incident.view |
 | `PATCH /api/v1/incidents/{id}` | mark open incident investigating | executor and owner checks |
 | `POST /api/v1/demo/pipelines/{id}/freshness-miss` | simulated F07 event with no run | development executor only |
+| `POST /api/v1/action-proposals` | evaluate and persist one M3 action | executor |
+| `GET /api/v1/action-proposals/{id}` | view proposal, policy and timeline | tenant member |
+| `POST /api/v1/action-proposals/{id}/approve` | approve exact M3 payload | distinct approver |
+| `POST /api/v1/action-proposals/{id}/execute` | bounded local effect and verification | original executor |
 | `GET /api/v1/incidents/{id}/timeline` | immutable-style lifecycle | incident.view |
 | `POST /api/v1/incidents/{id}/diagnoses` | launch bounded investigation | incident.investigate |
 | `GET /api/v1/proposals/{id}` | inspect exact plan and policy | proposal.view |
@@ -38,7 +42,7 @@ Implemented M1 routes are documented in [37_M1_LOCAL_CORE.md](37_M1_LOCAL_CORE.m
 | `GET /api/v1/audit-events` | tenant-scoped audit | audit.view |
 | `POST /api/v1/demo/scenarios/{name}` | inject bounded demo scenario | development-only + demo.manage |
 
-The incident list/detail routes and the two added M2 routes above are implemented. The separate timeline and diagnosis routes, generic demo scenario route, and other resource operations remain planned. M2 timeline events are embedded in `GET /api/v1/incidents/{id}`. M2 run trigger accepts only `{}`, `{"parameters":{}}` or one of the fixed `demo_fault` codes `F02`, `F03`, `F04`; the header holds the `Idempotency-Key`. The illustrative trigger below is a future contract and is not accepted by the M2 API.
+The incident list/detail routes, M2 demo freshness route and four M3 action-proposal routes above are implemented. The separate timeline and diagnosis routes, older generic `/proposals` routes, generic demo scenario route and other resource operations remain planned. M2 timeline events are embedded in `GET /api/v1/incidents/{id}`. M2 run trigger accepts only `{}`, `{"parameters":{}}` or one of the fixed `demo_fault` codes `F02`, `F03`, `F04`; the header holds the `Idempotency-Key`. The illustrative trigger below is a future contract and is not accepted by the current API.
 
 ## Example trigger (illustrative)
 ```json

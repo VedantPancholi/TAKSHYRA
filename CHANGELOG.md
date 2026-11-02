@@ -12,7 +12,8 @@
 - Added M4 tenant-scoped immutable contract versions, run-bound contract hashes, typed deterministic quality checks, explicit unknown/hold and failure/quarantine publication decisions, protected manifest metadata, migration and tests.
 - Consolidated public contribution guidance and removed obsolete development-only onboarding material from the current repository tree.
 - Added M5 tenant-scoped asset graph, explicit OpenLineage job-facet mappings, bounded impact APIs, incident linkage, migration, tests and Compose smoke coverage.
-- No cloud resources, agents, UI or paid integrations implemented.
+- Added M6 Next.js operations console with incident evidence, impact, governed proposals, approval and verification handoff; web proxy, role-aware controls and Compose smoke coverage.
+- No cloud resources, agents or paid integrations implemented.
 
 ## Blueprint — 2026-10-09
 

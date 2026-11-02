@@ -3,6 +3,21 @@ on:
   push:
   pull_request:
 jobs:
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
   test:
     runs-on: ubuntu-latest
     steps:
@@ -29,6 +44,7 @@ jobs:
       - run: docker compose exec -T api python scripts/smoke_m3.py
       - run: docker compose exec -T api python scripts/smoke_m4.py
       - run: docker compose exec -T api python scripts/smoke_m5.py
+      - run: docker compose exec -T api python scripts/smoke_m6.py
       - if: always()
         run: docker compose logs --no-color --tail=100
       - if: always()

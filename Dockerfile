@@ -12,4 +12,5 @@ COPY scripts/smoke_m2.py ./scripts/smoke_m2.py
 COPY scripts/smoke_m3.py ./scripts/smoke_m3.py
 COPY scripts/smoke_m4.py ./scripts/smoke_m4.py
 COPY scripts/smoke_m5.py ./scripts/smoke_m5.py
+COPY scripts/smoke_m6.py ./scripts/smoke_m6.py
 EXPOSE 8000

@@ -1,7 +1,7 @@
 # Implementation status — verified engineering record
 
-**Updated:** 2026-10-23
-**Stage:** M0–M5 local milestones complete for development. PostgreSQL migration and Compose smoke verification passed through M5 on 2026-10-23.
+**Updated:** 2026-11-02
+**Stage:** M0–M6 local milestones implemented for development. Five Compose services and the M6 web journey smoke passed on 2026-11-02.
 
 ## Reconnaissance
 
@@ -60,6 +60,12 @@
 - SQLite integration tests cover seeded independent chains, F04 incident impact, viewer access, cross-tenant denial, cycles, stale edges, depth/node truncation, explicit two-input/two-output mapping, idempotent duplicate, conflicting duplicate, invalid mapping and producer URL, and unknown impact. Full local suite passed: 20 tests, one upstream Starlette/AnyIO deprecation warning. Ruff, documentation validation and diff checks passed.
 - Existing PostgreSQL volume migrated to `0006_lineage (head)`. Compose M1–M5 smoke scripts passed in order; M5 smoke checks seeded impact, F04 incident link, exact mapping and duplicate ingestion. See [M5 runbook](41_M5_LINEAGE.md). CI is updated but its execution for this branch is not yet verified.
 
+## M6 implementation and verification
+
+- Selected slice: Next.js and TypeScript local operations console in `apps/web/`, with sign-in, incident queue, evidence timeline, potential downstream impact, investigation ownership, annotation proposal, simulated pause approval handoff, execution and verification display. The same-origin proxy allows only the UI's API routes and bounds JSON request size. It forwards development Basic credentials and tenant slug on each request; no persistent browser or server session is created. The API remains authoritative for role, tenant, policy and approval decisions.
+- Added a fifth Compose service on loopback port 3000, Node lockfile, web typecheck/build CI job and `scripts/smoke_m6.py`. The smoke covers page delivery, proxy allowlist, anonymous denial, viewer write denial, incident read, impact, annotation execution, separate approver approval and requester execution. The Next.js 16.4.4 dependency lock was audited with zero npm vulnerabilities. See [M6 runbook](42_M6_OPERATIONS_UI.md).
+- Limitations: the UI keeps Basic credentials in tab memory until account switch/reload, and the user must re-enter them for each role handoff. No production identity, durable browser session, full asset explorer, real pause effect or incident resolution exists. The console is for loopback development only.
+
 ## Implemented and locally verified
 
 - Files added: `pyproject.toml`, `uv.lock`, `takshyra/{api,auth,config,db,models,runner,seed,worker}.py`, `alembic.ini`, `migrations/`, `tests/test_foundation.py`, `Dockerfile`, `compose.yaml`, `scripts/smoke.py`, `.github/workflows/m1.yml`, and `docs/37_M1_LOCAL_CORE.md`. Updated `.env.example`, `README.md`, `Makefile`, API/local docs and changelog.
@@ -106,13 +112,18 @@
 | M5 `uv run --locked python scripts/validate_blueprint.py` | Exit 0; 15 required files, 71 internal links and example JSON validated. |
 | M5 `docker compose up --build -d --wait` and `alembic current` | Exit 0; four services healthy, PostgreSQL at `0006_lineage (head)`. |
 | M5 `docker compose exec -T api python scripts/smoke.py` through `scripts/smoke_m5.py` | Exit 0; M1–M5 smokes passed in order. |
+| M6 `docker compose up --build -d --wait` | Exit 0; PostgreSQL, Redis, API, worker and web healthy; web typecheck and production build passed. |
+| M6 `docker compose exec -T api python scripts/smoke_m6.py` | Exit 0; page, proxy allowlist, viewer denial, incident, annotation, approval and verification passed. |
+| M6 `npm audit` from the locked web dependency tree | Exit 0; zero vulnerabilities. |
+| M6 Python Ruff and blueprint validator | Exit 0; Ruff passed; 15 required files, 74 internal Markdown links and example JSON validated. |
+| M6 Python pytest suite | Exit 0; 20 passed, one upstream Starlette/AnyIO deprecation warning. |
 
 ## Security and remaining risks
 
 - No client-supplied execution path, role, tenant ID, code or SQL. Tenant membership and role come from persisted server records. Worker checks tenant and pipeline kind. Runs, attempts, quality and audit are durable DB records. Redis is only a wakeup hint.
 - Basic credentials are suitable only for loopback development. There is no TLS, production identity, rate limit, request byte limit, DB RLS, dedicated least-privilege DB roles or independent secret scan yet. Do not expose this stack to other hosts.
 - Database/filesystem publication is not atomic; deterministic manifests permit recovery of a crash after file write, but no artifact garbage collection is implemented. Output may remain on disk when a run fails after writing. Worker lease is five minutes with a maximum of two claims; a long transform may be reclaimed, and the fixed tiny fixture is the current bound.
-- M1–M5 local PostgreSQL/Compose exit gates passed. M4 PR #4 also passed GitHub's application test, Compose smoke and documentation workflows. The stack remains development-only. Restore testing, metrics, production identity and operation outside loopback remain unverified or out of scope. M2 freshness injection is manual, and simulated 503 faults do not contact an HTTP source. M3 notifications are local DB records and the pause action is only simulated. `pipeline.retry_demo` verification proves durable enqueue, not downstream run success. M4 gates only Takshyra's DB visibility and manifest API; it does not atomically publish to an external consumer. M5 supports a bounded OpenLineage subset and reports potential, not confirmed, downstream impact. Full incident resolution and customer-system recovery are not implemented. Next planned slice: M6 operations UI on its own branch.
+- M1–M6 local PostgreSQL/Compose exit gates passed. M4 PR #4 also passed GitHub's application test, Compose smoke and documentation workflows. The stack remains development-only. Restore testing, metrics, production identity and operation outside loopback remain unverified or out of scope. M2 freshness injection is manual, and simulated 503 faults do not contact an HTTP source. M3 notifications are local DB records and the pause action is only simulated. `pipeline.retry_demo` verification proves durable enqueue, not downstream run success. M4 gates only Takshyra's DB visibility and manifest API; it does not atomically publish to an external consumer. M5 supports a bounded OpenLineage subset and reports potential, not confirmed, downstream impact. M6 displays server decisions but does not add production authentication or effects. Full incident resolution and customer-system recovery are not implemented. Next planned slice: M7 diagnosis and deterministic fallback on its own branch.
 
 ## Naming and repository handoff
 

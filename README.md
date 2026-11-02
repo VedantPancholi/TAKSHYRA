@@ -3,7 +3,7 @@
 **Takshyra Data Reliability Platform** — an evidence-first, policy-governed Data Reliability Control Plane.
 
 > **Tagline:** Intelligence Behind Every Decision.
-> **Status:** M1–M4 passed local tests and PostgreSQL/Compose smoke runs; see [implementation status](docs/IMPLEMENTATION_STATUS.md). No cloud integrations, agents, or UI are implemented.
+> **Status:** M1–M5 passed local tests and PostgreSQL/Compose smoke runs; M6 adds a local operations UI. See [implementation status](docs/IMPLEMENTATION_STATUS.md). No cloud integrations or agents are implemented.
 > **Mission:** Help engineering teams determine what went wrong with data, which assets are affected, what actions are safe, and whether recovery actually restored correctness.
 
 ## The promise
@@ -46,6 +46,10 @@ M2 adds bounded demo faults, durable retries and tenant-scoped incidents. See [M
 M3 adds policy-gated local action proposals, exact-payload approval, bounded effects and verification. See [M3 policy and actions](docs/39_M3_POLICY_ACTIONS.md).
 
 M4 adds tenant-scoped contract versions bound to runs, deterministic checks and a PostgreSQL publication gate. See [M4 contracts](docs/40_M4_CONTRACTS.md).
+
+M5 adds a tenant-scoped asset graph, explicit lineage event mappings and bounded potential-impact paths. See [M5 lineage](docs/41_M5_LINEAGE.md).
+
+M6 adds a local web workbench for the incident-to-action journey, with viewer, executor and approver roles. See [M6 operations UI](docs/42_M6_OPERATIONS_UI.md).
 
 ## Demo in one sentence
 Inject silent data loss into an orders pipeline or a schema break into a telemetry decoder; see an incident, evidence and impact, safe policy evaluation, optional shadow test, approval where needed, and independently verified recovery.

@@ -17,12 +17,14 @@ from takshyra.contracts_api import active_orders, router as contracts_router
 from takshyra.config import Settings
 from takshyra.db import session
 from takshyra.incidents import record_observation
+from takshyra.lineage_api import router as lineage_router
 from takshyra.models import Attempt, AuditEvent, ContractVersion, Incident, IncidentEvent, Pipeline, QualityResult, Run, now
 from takshyra.runner import read_manifest
 
 app = FastAPI(title="Takshyra Data Reliability Platform", version="0.1.0")
 app.include_router(actions_router)
 app.include_router(contracts_router)
+app.include_router(lineage_router)
 log = logging.getLogger(__name__)
 
 

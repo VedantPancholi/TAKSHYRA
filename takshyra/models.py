@@ -40,11 +40,69 @@ class Membership(Base):
 
 class Pipeline(Base):
     __tablename__ = "pipelines"
-    __table_args__ = (UniqueConstraint("tenant_id", "id"), UniqueConstraint("tenant_id", "name"))
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "id"), UniqueConstraint("tenant_id", "name"),
+        ForeignKeyConstraint(["tenant_id", "output_asset_id"], ["assets.tenant_id", "assets.id"]),
+    )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
     tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), nullable=False)
     name: Mapped[str] = mapped_column(String(64), nullable=False)
     source_kind: Mapped[str] = mapped_column(String(32), nullable=False, default="seed_orders_v1")
+    output_asset_id: Mapped[str | None] = mapped_column(String(36))
+
+
+class Asset(Base):
+    __tablename__ = "assets"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "id"),
+        UniqueConstraint("tenant_id", "namespace", "name"),
+        Index("ix_assets_tenant_kind", "tenant_id", "kind"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), nullable=False)
+    namespace: Mapped[str] = mapped_column(String(128), nullable=False)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    owner: Mapped[str] = mapped_column(String(128), nullable=False)
+    criticality: Mapped[str] = mapped_column(String(16), nullable=False)
+    source_label: Mapped[str] = mapped_column(String(24), nullable=False)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class LineageEvent(Base):
+    __tablename__ = "lineage_events"
+    __table_args__ = (UniqueConstraint("tenant_id", "id"), UniqueConstraint("tenant_id", "event_key"))
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), nullable=False)
+    event_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    payload_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    producer: Mapped[str] = mapped_column(String(256), nullable=False)
+    job_namespace: Mapped[str] = mapped_column(String(128), nullable=False)
+    job_name: Mapped[str] = mapped_column(String(128), nullable=False)
+    run_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    event_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class LineageEdge(Base):
+    __tablename__ = "lineage_edges"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "id"),
+        ForeignKeyConstraint(["tenant_id", "source_asset_id"], ["assets.tenant_id", "assets.id"]),
+        ForeignKeyConstraint(["tenant_id", "target_asset_id"], ["assets.tenant_id", "assets.id"]),
+        ForeignKeyConstraint(["tenant_id", "event_id"], ["lineage_events.tenant_id", "lineage_events.id"]),
+        Index("ix_lineage_edges_source", "tenant_id", "source_asset_id", "valid_to"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    tenant_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    source_asset_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    target_asset_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    relation: Mapped[str] = mapped_column(String(24), nullable=False)
+    origin: Mapped[str] = mapped_column(String(16), nullable=False)
+    source_label: Mapped[str] = mapped_column(String(24), nullable=False)
+    event_id: Mapped[str | None] = mapped_column(String(36))
+    valid_from: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    valid_to: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class Dataset(Base):

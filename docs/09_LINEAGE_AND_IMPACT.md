@@ -1,5 +1,7 @@
 # Data lineage, blast-radius analysis and causality boundaries
 
+The implemented M5 subset, routes and limits are recorded in [41_M5_LINEAGE.md](41_M5_LINEAGE.md). The broader model below remains a specification.
+
 ## Registry
 Assets include `Dataset`, `DataProduct`, `Dashboard`, `API`, `MLModel`, `FeatureTable`, optionally `Job`. Each asset has namespace+name, owner, criticality, tags, evidence source, last-seen time, sensitivity. Relationships are `PRODUCES`, `CONSUMES`, `DERIVES_FROM`, `SERVES`, each with origin (`observed`, `declared`, `inferred`), confidence class and validity window.
 

@@ -28,7 +28,7 @@ flowchart TD
 
 ```text
 takshyra/
-├── README.md, AGENTS.md, CODEX_MASTER_PROMPT.md, CODEX_START_HERE.md
+├── README.md, CONTRIBUTING.md
 ├── apps/
 │   ├── api/                  # FastAPI routes, auth wiring, DI
 │   └── web/                  # Next.js pages/components
@@ -48,7 +48,6 @@ takshyra/
 ├── tests/                    # unit/integration/e2e/security/fault/perf
 ├── scripts/                  # setup, seed, benchmark, demos
 ├── infra/                    # docker, optional sandbox Terraform (plan only)
-├── prompts/                  # Codex milestone instructions
 ├── docs/, decisions/         # specs, ADRs, runbooks
 ├── .github/workflows/        # real CI checks
 ├── .env.example, .gitignore, docker-compose.yml, pyproject.toml

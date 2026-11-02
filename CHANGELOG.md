@@ -10,8 +10,9 @@
 - Added M2 deterministic F02/F03/F04/F07 fault scenarios, three-attempt retry scheduling, quality and execution incident detection, daily deduplication, typed evidence timeline, investigation ownership, protected incident APIs, migrations, tests and Compose smoke coverage.
 - Added M3 versioned local policy, exact-payload approval, four registered bounded actions, durable action/effect timeline, role and tenant rechecks, independent database verification, migration, negative tests and Compose smoke coverage.
 - Added M4 tenant-scoped immutable contract versions, run-bound contract hashes, typed deterministic quality checks, explicit unknown/hold and failure/quarantine publication decisions, protected manifest metadata, migration and tests.
+- Consolidated public contribution guidance and removed obsolete development-only onboarding material from the current repository tree.
 - No cloud resources, agents, UI or paid integrations implemented.
 
 ## Blueprint — 2026-10-09
 
-- Added Takshyra specifications, milestone prompts, design decisions, documentation validator and synthetic fixtures.
+- Added Takshyra specifications, design decisions, documentation validator and synthetic fixtures.

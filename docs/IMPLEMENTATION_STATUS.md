@@ -1,7 +1,15 @@
 # Implementation status — verified engineering record
 
 **Updated:** 2026-11-15
-**Stage:** M0–M8 local milestones are merged into `main` (M8 PR #10). Azure and AWS adapters are not implemented.
+**Stage:** M0–M8 local milestones are merged into `main` (M8 PR #10, follow-up smoke PR #11). M9 first slice is on `feat/m9-streaming-azure`; no live Azure or AWS integration is verified.
+
+## M9 first slice (2026-11-15)
+
+- Added a seeded synthetic telemetry pipeline, six deterministic in-memory stream scenarios, tenant-scoped observation records and incident evidence for failed checks. This is a simulator, not a Kafka/Event Hubs consumer or checkpointed stream. The web console has a small stream lab.
+- Added a read-only ADF `queryPipelineRuns` observer with exact resource allowlist, bounded window/pages/results, response-field filtering and mocked tests. An optional script requires explicit live opt-in and `DefaultAzureCredential`; no live Azure call was made.
+- Focused M9 tests: 9 passed. Full migrated SQLite suite: 39 passed, one upstream Starlette/AnyIO deprecation warning. Ruff passed for source, tests, migrations and scripts. The documentation validator checked 87 internal links. The web Docker production build and TypeScript check passed. `docker compose up --build -d --wait` applied migration `0010_stream_observations` and reported five healthy services. The M9 web-proxy/PostgreSQL smoke passed for a stream mismatch incident, downstream potential impact and safe duplicate delivery.
+- Remaining M9 scope: broker-backed stream consumption/reconciliation and additional Azure adapters. ADF observations are not yet ingested into the incident store. See [M9 first-slice behavior](45_M9_STREAMING_AZURE.md).
+- A prioritized post-M9 console redesign is proposed in [UX design](19_UX_DESIGN.md); it is a design recommendation, not an implemented interface.
 
 ## M8 shadow recovery branch (2026-11-15)
 

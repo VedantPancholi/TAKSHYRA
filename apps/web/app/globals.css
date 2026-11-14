@@ -338,6 +338,32 @@ p {
   overflow: hidden;
   min-height: 280px;
 }
+.stream-lab {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 24px;
+  padding: 24px;
+}
+.stream-lab p { margin-bottom: 12px; }
+.stream-controls { display: flex; gap: 12px; flex-wrap: wrap; }
+.stream-controls select {
+  min-width: 250px;
+  flex: 1;
+  padding: 11px 14px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #0d1721;
+  color: var(--text);
+}
+.stream-result { border-left: 1px solid var(--line); padding-left: 24px; }
+.stream-stats { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 14px; }
+.stream-stats span { display: grid; gap: 4px; color: var(--muted); font: 11px "DM Mono"; }
+.stream-stats strong { color: var(--text); font: 700 18px Manrope; }
+@media (max-width: 760px) {
+  .stream-lab { grid-template-columns: 1fr; }
+  .stream-result { border-left: 0; border-top: 1px solid var(--line); padding: 18px 0 0; }
+}
 .panel-heading {
   display: flex;
   justify-content: space-between;

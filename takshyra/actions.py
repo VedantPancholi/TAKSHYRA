@@ -5,6 +5,7 @@ import html
 import json
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 from fastapi import HTTPException
 from sqlalchemy import func, select
@@ -13,11 +14,11 @@ from sqlalchemy.orm import Session
 
 from takshyra.models import (
     ActionEffect, ActionEvent, ActionProposal, Attempt, AuditEvent, Incident,
-    IncidentEvent, Membership, Pipeline, Run, now, uid,
+    ContractVersion, IncidentEvent, Membership, Pipeline, Run, ShadowReplay, now, uid,
 )
 
 POLICY_VERSION = "m3-v1"
-ACTION_TYPES = frozenset({"incident.annotate", "notification.emit_local", "pipeline.retry_demo", "pipeline.pause_demo"})
+ACTION_TYPES = frozenset({"incident.annotate", "notification.emit_local", "pipeline.retry_demo", "pipeline.pause_demo", "pipeline.reprocess_demo"})
 APPROVAL_SECONDS = 600
 EXECUTION_LEASE_SECONDS = 30
 
@@ -85,6 +86,37 @@ def policy(db: Session, tenant_id: str, actor_id: str, action_type: str, target_
         if sent >= 3:
             return Decision("DENY", "LOCAL_NOTIFICATION_LIMIT", {})
         return Decision("ALLOW", "LOCAL_NOTIFICATION_ALLOWED", parameters)
+    if action_type == "pipeline.reprocess_demo":
+        if set(parameters) != {"shadow_report_id"}:
+            return Decision("DENY", "PARAMETERS_INVALID", {})
+        source = db.scalar(select(Run).where(Run.id == target_id, Run.tenant_id == tenant_id))
+        report = db.scalar(select(ShadowReplay).where(
+            ShadowReplay.id == parameters["shadow_report_id"], ShadowReplay.tenant_id == tenant_id,
+            ShadowReplay.source_run_id == target_id, ShadowReplay.status == "SUPPORTED",
+        ))
+        if not source or not report:
+            return Decision("DENY", "SHADOW_REPORT_UNAVAILABLE", {})
+        incident = db.scalar(select(Incident).where(
+            Incident.id == report.incident_id, Incident.tenant_id == tenant_id,
+            Incident.run_id == source.id, Incident.status != "RESOLVED",
+        ))
+        version = db.scalar(select(ContractVersion).where(
+            ContractVersion.id == source.contract_version_id,
+            ContractVersion.tenant_id == tenant_id,
+            ContractVersion.definition_hash == report.contract_hash,
+        )) if source.contract_version_id else None
+        if not incident or not version or source.demo_fault != "F04" or source.status != "SUCCEEDED" or source.quality_status != "FAIL" or source.publication_status != "QUARANTINED":
+            return Decision("DENY", "RECOVERY_SOURCE_UNAVAILABLE", {})
+        if db.scalar(select(Run).where(Run.tenant_id == tenant_id, Run.retry_of_run_id == source.id)):
+            return Decision("DENY", "RECOVERY_ALREADY_STARTED", {})
+        from takshyra.config import Settings
+        fixture = Path(Settings.from_env().fixture_path)
+        try:
+            if fixture.stat().st_size > 10_000_000 or hashlib.sha256(fixture.read_bytes()).hexdigest() != report.source_sha256:
+                return Decision("DENY", "SHADOW_INPUT_CHANGED", {})
+        except OSError:
+            return Decision("DENY", "SHADOW_INPUT_UNAVAILABLE", {})
+        return Decision("REQUIRES_APPROVAL", "SHADOW_REPROCESS_APPROVAL", {"shadow_report_id": report.id})
     if parameters:
         return Decision("DENY", "PARAMETERS_INVALID", {})
     if action_type == "pipeline.pause_demo":
@@ -220,10 +252,11 @@ def apply_effect(db: Session, proposal: ActionProposal) -> str:
         detail = params["message_code"]
     elif proposal.action_type == "pipeline.pause_demo":
         detail = "SIMULATED_PAUSE_ONLY"
-    elif proposal.action_type == "pipeline.retry_demo":
+    elif proposal.action_type in {"pipeline.retry_demo", "pipeline.reprocess_demo"}:
         source = db.scalar(select(Run).where(Run.id == target_id, Run.tenant_id == proposal.tenant_id))
-        retry = Run(tenant_id=proposal.tenant_id, pipeline_id=source.pipeline_id, retry_of_run_id=source.id,
-                    idempotency_key=f"action-retry-{proposal.id}", payload_digest=proposal.payload_digest)
+        retry = Run(tenant_id=proposal.tenant_id, pipeline_id=source.pipeline_id,
+                    contract_version_id=source.contract_version_id, retry_of_run_id=source.id,
+                    idempotency_key=f"action-{'reprocess' if proposal.action_type == 'pipeline.reprocess_demo' else 'retry'}-{proposal.id}", payload_digest=proposal.payload_digest)
         db.add(retry)
         db.flush()
         target_id = retry.id
@@ -239,7 +272,7 @@ def verify_effect(db: Session, proposal: ActionProposal) -> tuple[str, str | Non
     effect = db.get(ActionEffect, proposal.id)
     if not effect or effect.tenant_id != proposal.tenant_id or effect.effect_kind != proposal.action_type:
         return "INCONCLUSIVE", None
-    if proposal.action_type == "pipeline.retry_demo":
+    if proposal.action_type in {"pipeline.retry_demo", "pipeline.reprocess_demo"}:
         retry = db.scalar(select(Run).where(Run.id == effect.target_id, Run.tenant_id == proposal.tenant_id,
                                             Run.retry_of_run_id == proposal.target_id))
         return ("VERIFIED", retry.id) if retry else ("INCONCLUSIVE", None)

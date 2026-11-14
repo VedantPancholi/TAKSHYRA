@@ -3,7 +3,7 @@
 **Takshyra Data Reliability Platform** — an evidence-first, policy-governed Data Reliability Control Plane.
 
 > **Tagline:** Intelligence Behind Every Decision.
-> **Status:** M1–M5 passed local tests and PostgreSQL/Compose smoke runs; M6 adds a local operations UI. See [implementation status](docs/IMPLEMENTATION_STATUS.md). No cloud integrations or agents are implemented.
+> **Status:** M1–M7 have local implementations. M8 adds a bounded local shadow replay and recovery check on this branch. See [implementation status](docs/IMPLEMENTATION_STATUS.md). No cloud integrations or autonomous agents are implemented.
 > **Mission:** Help engineering teams determine what went wrong with data, which assets are affected, what actions are safe, and whether recovery actually restored correctness.
 
 ## The promise
@@ -51,7 +51,9 @@ M5 adds a tenant-scoped asset graph, explicit lineage event mappings and bounded
 
 M6 adds a local web workbench for the incident-to-action journey, with viewer, executor and approver roles. See [M6 operations UI](docs/42_M6_OPERATIONS_UI.md).
 
-M7 records deterministic, evidence-linked hypotheses in the console. A local Ollama provider is optional and falls back to rules if unavailable or invalid. Incident memory remains empty until independent recovery verification exists. See [M7 diagnosis](docs/43_M7_DIAGNOSIS.md).
+M7 records deterministic, evidence-linked hypotheses in the console. A local Ollama provider is optional and falls back to rules if unavailable or invalid. See [M7 diagnosis](docs/43_M7_DIAGNOSIS.md).
+
+M8 adds local shadow replay for the row deficit demo, approved reprocessing, independent recovery verification, and tenant scoped retrieval of verified prior outcomes. See [M8 shadow recovery](docs/44_M8_SHADOW_RECOVERY.md).
 
 ## Demo in one sentence
 Inject silent data loss into an orders pipeline or a schema break into a telemetry decoder; see an incident, evidence and impact, safe policy evaluation, optional shadow test, approval where needed, and independently verified recovery.

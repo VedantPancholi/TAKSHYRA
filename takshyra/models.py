@@ -264,6 +264,48 @@ class Diagnosis(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
+class ShadowReplay(Base):
+    __tablename__ = "shadow_replays"
+    __table_args__ = (
+        ForeignKeyConstraint(["tenant_id", "incident_id"], ["incidents.tenant_id", "incidents.id"]),
+        ForeignKeyConstraint(["tenant_id", "source_run_id"], ["runs.tenant_id", "runs.id"]),
+        UniqueConstraint("tenant_id", "id"),
+        Index("ix_shadow_replays_incident", "tenant_id", "incident_id", "created_at"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    tenant_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    incident_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    source_run_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    source_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    contract_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    reason: Mapped[str] = mapped_column(String(64), nullable=False)
+    baseline_row_count: Mapped[int | None] = mapped_column(Integer)
+    replay_row_count: Mapped[int | None] = mapped_column(Integer)
+    replay_sha256: Mapped[str | None] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class RecoveryOutcome(Base):
+    __tablename__ = "recovery_outcomes"
+    __table_args__ = (
+        ForeignKeyConstraint(["tenant_id", "incident_id"], ["incidents.tenant_id", "incidents.id"]),
+        ForeignKeyConstraint(["tenant_id", "proposal_id"], ["action_proposals.tenant_id", "action_proposals.id"]),
+        ForeignKeyConstraint(["tenant_id", "recovery_run_id"], ["runs.tenant_id", "runs.id"]),
+        UniqueConstraint("tenant_id", "proposal_id"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    tenant_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    incident_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    proposal_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    recovery_run_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    reason: Mapped[str] = mapped_column(String(64), nullable=False)
+    manifest_sha256: Mapped[str | None] = mapped_column(String(64))
+    verified_by: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
 class ActionProposal(Base):
     __tablename__ = "action_proposals"
     __table_args__ = (

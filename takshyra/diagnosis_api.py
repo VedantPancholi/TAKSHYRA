@@ -10,17 +10,31 @@ from sqlalchemy.orm import Session
 from takshyra.auth import Identity, executor, identity
 from takshyra.db import session
 from takshyra.local_ai import LocalAIConfig, call_ollama, evidence_cards, validate_output
-from takshyra.models import AuditEvent, Diagnosis, Incident, IncidentEvent, QualityResult, Run, now
+from takshyra.models import AuditEvent, Diagnosis, Incident, IncidentEvent, QualityResult, RecoveryOutcome, Run, now
 
 router = APIRouter(prefix="/api/v1/incidents/{incident_id}/diagnoses", tags=["diagnoses"])
 
 
-def view(row: Diagnosis, *, provider_status: str | None = None) -> dict:
+def view(db: Session, row: Diagnosis, *, provider_status: str | None = None) -> dict:
+    current = db.scalar(select(Incident).where(
+        Incident.id == row.incident_id, Incident.tenant_id == row.tenant_id,
+    ))
+    outcomes = db.scalars(select(RecoveryOutcome).join(
+        Incident, (RecoveryOutcome.incident_id == Incident.id)
+        & (RecoveryOutcome.tenant_id == Incident.tenant_id),
+    ).where(
+        RecoveryOutcome.tenant_id == row.tenant_id,
+        RecoveryOutcome.status == "VERIFIED",
+        Incident.error_code == current.error_code,
+        RecoveryOutcome.recovery_run_id != current.run_id,
+    ).order_by(RecoveryOutcome.created_at.desc()).limit(3)).all() if current else []
+    cases = [{"id": outcome.id, "summary": "A prior local reprocess restored the bound contract checks and row count."}
+             for outcome in outcomes]
     return {
         "id": row.id, "incident_id": row.incident_id, "method": row.method,
         "status": row.status, "evidence_hash": row.evidence_hash,
         "model_id": row.model_id, "provider_status": provider_status or row.provider_status or "NOT_RECORDED",
-        "memory_status": "NO_VERIFIED_OUTCOMES", "similar_cases": [],
+        "memory_status": "VERIFIED_CASES_AVAILABLE" if cases else "NO_VERIFIED_OUTCOMES", "similar_cases": cases,
         "hypotheses": json.loads(row.hypotheses_json), "created_at": row.created_at,
     }
 
@@ -84,7 +98,7 @@ def list_diagnoses(incident_id: str, principal: Identity = Depends(identity), db
     rows = db.scalars(select(Diagnosis).where(
         Diagnosis.tenant_id == principal.tenant_id, Diagnosis.incident_id == incident_id,
     ).order_by(Diagnosis.created_at.desc(), Diagnosis.id.desc()).limit(20)).all()
-    return {"items": [view(row) for row in rows]}
+    return {"items": [view(db, row) for row in rows]}
 
 
 @router.post("", status_code=201)
@@ -117,7 +131,7 @@ def create_diagnosis(incident_id: str, principal: Identity = Depends(executor), 
             Diagnosis.evidence_hash == model_hash,
         ))
         if model_record:
-            return view(model_record)
+            return view(db, model_record)
         cards, refs = evidence_cards(snapshot)
         try:
             hypotheses = validate_output(call_ollama(config, cards), refs)
@@ -142,7 +156,7 @@ def create_diagnosis(incident_id: str, principal: Identity = Depends(executor), 
     ))
     if existing:
         db.commit()  # Persists a model-fallback audit event, if one was recorded.
-        return view(existing, provider_status=fallback_status if method == "RULES_V1" else None)
+        return view(db, existing, provider_status=fallback_status if method == "RULES_V1" else None)
     status = "HYPOTHESIS" if hypotheses else "UNKNOWN"
     diagnosis = Diagnosis(
         tenant_id=principal.tenant_id, incident_id=incident_id, evidence_hash=result_hash,
@@ -161,4 +175,4 @@ def create_diagnosis(incident_id: str, principal: Identity = Depends(executor), 
         action="incident.diagnose", target_id=incident_id, outcome=status,
     ))
     db.commit()
-    return view(diagnosis)
+    return view(db, diagnosis)

@@ -68,6 +68,18 @@ def seed() -> None:
                 pipeline = Pipeline(tenant_id=tenant.id, name="orders_csv_v1", source_kind="seed_orders_v1")
                 db.add(pipeline)
             pipeline.output_asset_id = curated_asset.id
+            telemetry = db.scalar(select(Pipeline).where(
+                Pipeline.tenant_id == tenant.id, Pipeline.name == "telemetry_stream_demo_v1",
+            ))
+            if telemetry is None:
+                telemetry = Pipeline(tenant_id=tenant.id, name="telemetry_stream_demo_v1",
+                                     source_kind="telemetry_demo_v1")
+                db.add(telemetry)
+            telemetry_asset = db.scalar(select(Asset).where(
+                Asset.tenant_id == tenant.id, Asset.namespace == "takshyra.demo",
+                Asset.name == "demo.telemetry_decoded",
+            ))
+            telemetry.output_asset_id = telemetry_asset.id
             dataset = db.scalar(select(Dataset).where(Dataset.tenant_id == tenant.id, Dataset.ref == "demo.orders_curated"))
             if dataset is None:
                 dataset = Dataset(tenant_id=tenant.id, ref="demo.orders_curated", owner="demo-data-platform", active_version=1)

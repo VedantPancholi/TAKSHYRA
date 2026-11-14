@@ -227,6 +227,22 @@ class Incident(Base):
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
+class StreamObservation(Base):
+    __tablename__ = "stream_observations"
+    __table_args__ = (
+        ForeignKeyConstraint(["tenant_id", "pipeline_id"], ["pipelines.tenant_id", "pipelines.id"]),
+        Index("ix_stream_observations_tenant_created", "tenant_id", "created_at"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), nullable=False)
+    pipeline_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    scenario: Mapped[str] = mapped_column(String(24), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    error_code: Mapped[str | None] = mapped_column(String(64))
+    metrics_json: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
 class IncidentEvent(Base):
     __tablename__ = "incident_events"
     __table_args__ = (

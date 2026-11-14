@@ -89,6 +89,22 @@ type RecoveryOutcome = {
   reason?: string;
   recovery_run_id?: string;
 };
+type StreamObservation = {
+  id: string;
+  scenario: string;
+  status: string;
+  error_code: string | null;
+  incident_id: string | null;
+  metrics: {
+    source_events: number;
+    written: number;
+    dlq: number;
+    duplicates: number;
+    late: number;
+    max_lag_seconds: number;
+    source_sink_gap: number;
+  };
+};
 
 async function api<T>(
   session: Session,
@@ -123,7 +139,7 @@ function stamp(value: string | null | undefined) {
 }
 
 function Pill({ value }: { value: string }) {
-  const tone = /FAILED|DENY|CRITICAL|HIGH|QUARANTINED/.test(value)
+  const tone = /FAIL|DENY|CRITICAL|HIGH|QUARANTINED/.test(value)
     ? "danger"
     : /APPROV|OPEN|MEDIUM|UNKNOWN|INCONCLUSIVE/.test(value)
       ? "warn"
@@ -145,6 +161,8 @@ export default function OperationsPage() {
   const [recoveryOutcome, setRecoveryOutcome] = useState<RecoveryOutcome | null>(null);
   const [proposal, setProposal] = useState<Proposal | null>(null);
   const [recentProposals, setRecentProposals] = useState<ProposalSummary[]>([]);
+  const [streamScenario, setStreamScenario] = useState("SCHEMA_V15");
+  const [streamObservation, setStreamObservation] = useState<StreamObservation | null>(null);
   const [note, setNote] = useState("Checked incident evidence");
   const [actionType, setActionType] = useState<
     "incident.annotate" | "pipeline.pause_demo" | "pipeline.reprocess_demo"
@@ -207,11 +225,12 @@ export default function OperationsPage() {
         setRecoveryOutcome(null);
         setProposal(null);
         setRecentProposals([]);
+        setStreamObservation(null);
       }
       setWorkspaceTenant(active.tenant);
       setSession(active);
       setPassword("");
-      const [list, pipeList, proposals] = await Promise.all([
+      const [list, pipeList, proposals, streamObservations] = await Promise.all([
         api<{ items: Incident[] }>(active, "GET", "incidents"),
         api<{ items: { id: string; name: string }[] }>(
           active,
@@ -219,10 +238,12 @@ export default function OperationsPage() {
           "pipelines",
         ),
         api<{ items: ProposalSummary[] }>(active, "GET", "action-proposals"),
+        api<{ items: StreamObservation[] }>(active, "GET", "stream-observations"),
       ]);
       setIncidents(list.items);
       setPipelines(pipeList.items);
       setRecentProposals(proposals.items);
+      setStreamObservation(streamObservations.items[0] ?? null);
       if (proposal && (!workspaceTenant || workspaceTenant === active.tenant)) {
         try {
           setProposal(
@@ -249,6 +270,7 @@ export default function OperationsPage() {
     setShadowReplay(null);
     setRecoveryOutcome(null);
     setRecentProposals([]);
+    setStreamObservation(null);
     setNotice(
       "Signed out. Sign in with another role to continue the proposal handoff.",
     );
@@ -323,6 +345,18 @@ export default function OperationsPage() {
       await api(active, "POST", `pipelines/${pipelines[0].id}/runs`,
         { demo_fault: "F04" }, crypto.randomUUID());
       setNotice("Row deficit run queued. Refresh after the worker finishes, then select its quality incident.");
+    });
+  }
+
+  function runStreamScenario(active: Session) {
+    void perform(async () => {
+      const result = await api<StreamObservation>(active, "POST", "stream-observations/demo",
+        { scenario: streamScenario });
+      setStreamObservation(result);
+      await loadIncidents(active);
+      setNotice(result.incident_id
+        ? "Simulated stream failure recorded with an incident."
+        : "Simulated stream checks passed.");
     });
   }
 
@@ -558,6 +592,42 @@ export default function OperationsPage() {
               <span>YOUR ACCESS</span>
               <strong>{session.role.toUpperCase()}</strong>
               <small>Enforced by the API</small>
+            </div>
+          </section>
+          <div className="section-top">
+            <div>
+              <div className="eyebrow">STREAM LAB / LOCAL</div>
+              <h2>Telemetry checks</h2>
+            </div>
+            <span className="section-aside">Synthetic events · no external broker</span>
+          </div>
+          <section className="panel stream-lab" aria-label="Synthetic stream checks">
+            <div>
+              <p className="muted">Run a bounded telemetry scenario. The decoder, lag, dead-letter count and source-to-sink totals are checked before an incident is recorded.</p>
+              {canExecute && <div className="stream-controls">
+                <select aria-label="Stream scenario" value={streamScenario} onChange={(event) => setStreamScenario(event.target.value)}>
+                  <option value="SCHEMA_V15">Schema v15 arrives at v14 decoder</option>
+                  <option value="SINK_GAP">Sink misses an acknowledged event</option>
+                  <option value="CONSUMER_LAG">Consumer falls behind</option>
+                  <option value="LATE_EVENT">Late event</option>
+                  <option value="DUPLICATE">Duplicate delivery, safely deduplicated</option>
+                  <option value="CLEAN">Clean stream</option>
+                </select>
+                <button className="secondary" disabled={busy} onClick={() => runStreamScenario(session)}>Run local check</button>
+              </div>}
+            </div>
+            <div className="stream-result">
+              {streamObservation ? <>
+                <p><Pill value={streamObservation.status} /> {streamObservation.error_code?.replaceAll("_", " ") ?? "No failure detected"}</p>
+                <div className="stream-stats">
+                  <span>Source <strong>{streamObservation.metrics.source_events}</strong></span>
+                  <span>Written <strong>{streamObservation.metrics.written}</strong></span>
+                  <span>Gap <strong>{streamObservation.metrics.source_sink_gap}</strong></span>
+                  <span>DLQ <strong>{streamObservation.metrics.dlq}</strong></span>
+                  <span>Lag <strong>{streamObservation.metrics.max_lag_seconds}s</strong></span>
+                </div>
+                <small className="muted">{streamObservation.scenario.replaceAll("_", " ")} · simulated evidence</small>
+              </> : <p className="muted">No stream check recorded yet.</p>}
             </div>
           </section>
           <div className="section-top">

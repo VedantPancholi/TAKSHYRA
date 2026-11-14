@@ -46,6 +46,7 @@ jobs:
       - run: docker compose exec -T api python scripts/smoke_m5.py
       - run: docker compose exec -T api python scripts/smoke_m6.py
       - run: docker compose exec -T api python scripts/smoke_m8.py
+      - run: docker compose exec -T api python scripts/smoke_m9.py
       - if: always()
         run: docker compose logs --no-color --tail=100
       - if: always()

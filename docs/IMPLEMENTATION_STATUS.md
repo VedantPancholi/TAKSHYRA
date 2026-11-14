@@ -1,7 +1,14 @@
 # Implementation status — verified engineering record
 
 **Updated:** 2026-11-15
-**Stage:** M0–M8 local milestones are merged into `main` (M8 PR #10). Azure and AWS adapters are not implemented.
+**Stage:** M0–M8 local milestones are merged into `main` (M8 PR #10, follow-up smoke PR #11). M9 first slice is on `feat/m9-streaming-azure`; no live Azure or AWS integration is verified.
+
+## M9 first slice (2026-11-15)
+
+- Added a seeded synthetic telemetry pipeline, six deterministic in-memory stream scenarios, tenant-scoped observation records and incident evidence for failed checks. This is a simulator, not a Kafka/Event Hubs consumer or checkpointed stream. The web console has a small stream lab.
+- Added a read-only ADF `queryPipelineRuns` observer with exact resource allowlist, bounded window/pages/results, response-field filtering and mocked tests. An optional script requires explicit live opt-in and `DefaultAzureCredential`; no live Azure call was made.
+- Focused M9 tests: 9 passed. Ruff passed for new code. The web Docker production build and TypeScript check passed. Compose smoke and full-suite results are recorded after the final verification run.
+- Remaining M9 scope: broker-backed stream consumption/reconciliation and additional Azure adapters. ADF observations are not yet ingested into the incident store. See [M9 first-slice behavior](45_M9_STREAMING_AZURE.md).
 
 ## M8 shadow recovery branch (2026-11-15)
 

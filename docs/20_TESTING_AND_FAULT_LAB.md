@@ -35,6 +35,8 @@ Seeded RNG; fixed time via injected clock; deterministic IDs or stable semantic 
 
 M1 F01 and M2 F02, F03, F04 and F07 have working local API/worker tests and Compose smoke scripts. Other scenarios remain planned. F02 and F03 use fixed simulated 503 codes, and F07 uses manual injection; they do not represent a live source or automated freshness monitor. See [M2 incidents](38_M2_INCIDENTS.md).
 
+M9 adds local deterministic simulations for F14 (v15 event rejected by the v14 decoder) and F15 (source/sink mismatch after an acknowledged event). It also checks lag, duplicate delivery and late events. The fixture has no broker, checkpoint or real sink; see [M9 first slice](45_M9_STREAMING_AZURE.md).
+
 ## Reliability drills
 Kill worker during leased task; stop Redis after transaction; resume after DB restart; hit duplicate approval concurrently; simulate old event arriving after new contract version; attempt replay outside broker retention. Require fail-safe outcome and durable incident/audit evidence.
 

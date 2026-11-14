@@ -29,6 +29,8 @@ assert failed["incident_id"]
 detail = call("viewer", f"incidents/{failed['incident_id']}")
 assert detail["error_code"] == "STREAM_RECONCILIATION_GAP"
 assert any(event["source_kind"] == "STREAM_OBSERVATION" for event in detail["timeline"])
+impact = call("viewer", f"incidents/{failed['incident_id']}/impact")
+assert any(item["name"] == "demo.operations_dashboard" for item in impact["items"])
 assert call("viewer", "stream-observations")["items"][0]["id"] == failed["id"]
 clean = call("executor", "stream-observations/demo", "POST", {"scenario": "DUPLICATE"})
 assert clean["status"] == "PASS" and clean["metrics"]["duplicates"] == 1

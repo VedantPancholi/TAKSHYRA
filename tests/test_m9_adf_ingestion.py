@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -8,7 +9,7 @@ from sqlalchemy.orm import Session
 from takshyra.adf import AdfObserver, AdfScope
 from takshyra.adf_ingestion import ingest_runs, register_binding
 from takshyra.api import app
-from takshyra.models import AdfRunObservation, Incident, IncidentEvent, Tenant
+from takshyra.models import AdfPipelineBinding, AdfRunObservation, Incident, IncidentEvent, Tenant
 import test_foundation as foundation
 
 
@@ -121,3 +122,91 @@ def test_adf_ingestion_rejects_incomplete_or_cross_tenant_results(local):
             ingest_runs(db, scope=scope, binding=binding, result=wrong,
                         provenance="simulated")
         assert db.scalars(select(AdfRunObservation)).all() == []
+
+
+def test_late_invalid_run_cannot_leave_partial_incident_after_commit(local):
+    _, engine = local
+    with Session(engine) as db:
+        scope, binding = setup(db)
+        db.commit()
+        first = observed(scope, sample(run_id="good-first"))["items"][0]
+        second = {**first, "run_id": "bad-second", "run_end": "not-a-timestamp"}
+        with pytest.raises(ValueError, match="timestamp"):
+            ingest_runs(db, scope=scope, binding=binding,
+                        result={"items": [first, second], "truncated": False},
+                        provenance="simulated")
+        db.commit()  # A caller catching the error must not commit the first item.
+        assert db.scalars(select(AdfRunObservation)).all() == []
+        assert db.scalars(select(Incident).where(Incident.error_code == "ADF_RUN_FAILED")).all() == []
+
+
+def test_duplicate_batch_and_malformed_fields_roll_back_every_item(local):
+    _, engine = local
+    with Session(engine) as db:
+        scope, binding = setup(db)
+        db.commit()
+        valid = observed(scope, sample(run_id="first"))["items"][0]
+        bad_cases = [
+            {**valid, "run_id": "first"},
+            {**valid, "run_id": "second", "status": {"untrusted": "value"}},
+            {**valid, "run_id": "second", "run_start": "2026-11-15T10:00:00"},
+            {**valid, "run_id": "second", "run_end": "2026-11-15T09:00:00Z"},
+            {**valid, "run_id": "second", "run_end": "x" * 65},
+            {**valid, "run_id": "second", "factory": "another-factory"},
+        ]
+        for bad in bad_cases:
+            with pytest.raises((ValueError, PermissionError)):
+                ingest_runs(db, scope=scope, binding=binding,
+                            result={"items": [valid, bad], "truncated": False},
+                            provenance="simulated")
+            db.commit()
+            assert db.scalars(select(AdfRunObservation)).all() == []
+            assert db.scalars(select(IncidentEvent).where(
+                IncidentEvent.source_kind == "ADF_RUN_OBSERVATION",
+            )).all() == []
+        with pytest.raises(ValueError, match="complete"):
+            ingest_runs(db, scope=scope, binding=binding,
+                        result={"items": [valid] * 101, "truncated": False},
+                        provenance="simulated")
+
+
+def test_ingestion_requires_a_persisted_exact_binding(local):
+    _, engine = local
+    with Session(engine) as db:
+        scope, binding = setup(db)
+        db.commit()
+        forged = AdfPipelineBinding(
+            id=str(uuid.uuid4()), tenant_id=binding.tenant_id,
+            pipeline_id=binding.pipeline_id, factory=binding.factory,
+            external_name=binding.external_name,
+        )
+        with pytest.raises(PermissionError, match="binding"):
+            ingest_runs(db, scope=scope, binding=forged,
+                        result=observed(scope, sample()), provenance="simulated")
+        db.commit()
+        assert db.scalars(select(AdfRunObservation)).all() == []
+
+
+def test_two_failed_runs_add_two_evidence_events_without_duplicate_repolls(local):
+    _, engine = local
+    with Session(engine) as db:
+        scope, binding = setup(db)
+        db.commit()
+        first = observed(scope, sample(run_id="first"))["items"][0]
+        second = {**first, "run_id": "second"}
+        result = {"items": [first, second], "truncated": False}
+        assert ingest_runs(db, scope=scope, binding=binding, result=result,
+                           provenance="simulated")["incidents"] == 2
+        db.commit()
+        assert ingest_runs(db, scope=scope, binding=binding, result=result,
+                           provenance="simulated")["incidents"] == 0
+        db.commit()
+        incident = db.scalar(select(Incident).where(Incident.error_code == "ADF_RUN_FAILED"))
+        events = db.scalars(select(IncidentEvent).where(
+            IncidentEvent.source_kind == "ADF_RUN_OBSERVATION",
+        )).all()
+        assert incident.occurrence_count == 2
+        assert len(events) == 2
+        assert {event.source_id for event in events} == {
+            row.id for row in db.scalars(select(AdfRunObservation)).all()
+        }

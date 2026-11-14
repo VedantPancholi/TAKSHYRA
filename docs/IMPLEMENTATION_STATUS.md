@@ -1,7 +1,14 @@
 # Implementation status — verified engineering record
 
 **Updated:** 2026-11-15
-**Stage:** M0–M8 and the M9 first slice (PR #13) are merged into `main`. A follow-up ADF ingestion slice is on `feat/m9-adf-ingestion`; no live Azure or AWS integration is verified.
+**Stage:** M0–M8 and the first two M9 slices (PRs #13–14) are merged into `main`. ADF fault hardening is on `test/m9-adf-failure-cases`; no live Azure or AWS integration is verified.
+
+## M9 ADF failure-case hardening (2026-11-15)
+
+- Adversarial tests exposed two defects: a malformed later run could leave an earlier failed run and incident pending for commit, and an unhashable provider status raised an unexpected exception. The importer now wraps each batch in a database savepoint and validates status types before membership checks.
+- Ingestion now verifies that the exact binding exists in the database and locks it during a poll, so overlapping PostgreSQL polls for the same pipeline serialize. The tests cover cross-tenant and forged bindings, malformed timestamps and fields, duplicate run IDs, incomplete results, idempotent repeat polls and separate evidence for multiple failed runs.
+- A PostgreSQL fault smoke checks rollback after a late malformed run, repeat polling and concurrent imports without duplicate observations or incidents. It uses mocked ADF responses; no live Azure call is made.
+- Focused M9 tests: 20 passed. Full migrated Python suite: 50 passed, one upstream Starlette/AnyIO deprecation warning. Ruff, documentation validation (89 links), web TypeScript and production build, healthy Compose services, the normal ADF smoke and the PostgreSQL fault smoke all passed.
 
 ## M9 ADF ingestion follow-up (2026-11-15)
 

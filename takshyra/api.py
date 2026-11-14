@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from takshyra.auth import Identity, executor, identity
 from takshyra.actions_api import router as actions_router
+from takshyra.adf_api import router as adf_router
 from takshyra.contracts_api import active_orders, router as contracts_router
 from takshyra.config import Settings
 from takshyra.db import session
@@ -26,6 +27,7 @@ from takshyra.runner import read_manifest
 
 app = FastAPI(title="Takshyra Data Reliability Platform", version="0.1.0")
 app.include_router(actions_router)
+app.include_router(adf_router)
 app.include_router(contracts_router)
 app.include_router(lineage_router)
 app.include_router(diagnosis_router)

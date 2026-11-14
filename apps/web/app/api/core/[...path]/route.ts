@@ -15,6 +15,7 @@ const allowed: Record<string, RegExp[]> = {
     /^action-proposals\/[0-9a-f-]{36}$/i,
     /^action-proposals\/[0-9a-f-]{36}\/recovery-outcome$/i,
     /^stream-observations$/,
+    /^adf-observations$/,
   ],
   PATCH: [/^incidents\/[0-9a-f-]{36}$/i],
   POST: [

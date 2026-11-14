@@ -9,6 +9,7 @@ const allowed: Record<string, RegExp[]> = {
     /^incidents$/,
     /^incidents\/[0-9a-f-]{36}$/i,
     /^incidents\/[0-9a-f-]{36}\/impact$/i,
+    /^action-proposals$/,
     /^action-proposals\/[0-9a-f-]{36}$/i,
   ],
   PATCH: [/^incidents\/[0-9a-f-]{36}$/i],

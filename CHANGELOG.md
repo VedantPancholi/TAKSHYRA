@@ -13,6 +13,7 @@
 - Consolidated public contribution guidance and removed obsolete development-only onboarding material from the current repository tree.
 - Added M5 tenant-scoped asset graph, explicit OpenLineage job-facet mappings, bounded impact APIs, incident linkage, migration, tests and Compose smoke coverage.
 - Added M6 Next.js operations console with incident evidence, impact, governed proposals, approval and verification handoff; web proxy, role-aware controls and Compose smoke coverage.
+- Added a tenant-scoped recent-proposals list so the M6 approver and executor can resume a handoff without typing a proposal ID, and clarified that current actions do not repair pipelines.
 - No cloud resources, agents or paid integrations implemented.
 
 ## Blueprint — 2026-10-09

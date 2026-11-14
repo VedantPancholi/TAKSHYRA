@@ -34,6 +34,7 @@ Implemented M1 routes are documented in [37_M1_LOCAL_CORE.md](37_M1_LOCAL_CORE.m
 | `PATCH /api/v1/incidents/{id}` | mark open incident investigating | executor and owner checks |
 | `POST /api/v1/demo/pipelines/{id}/freshness-miss` | simulated F07 event with no run | development executor only |
 | `POST /api/v1/action-proposals` | evaluate and persist one M3 action | executor |
+| `GET /api/v1/action-proposals` | list up to 50 recent tenant proposals for a role handoff | tenant member |
 | `GET /api/v1/action-proposals/{id}` | view proposal, policy and timeline | tenant member |
 | `POST /api/v1/action-proposals/{id}/approve` | approve exact M3 payload | distinct approver |
 | `POST /api/v1/action-proposals/{id}/execute` | bounded local effect and verification | original executor |
@@ -48,7 +49,7 @@ Implemented M1 routes are documented in [37_M1_LOCAL_CORE.md](37_M1_LOCAL_CORE.m
 | `GET /api/v1/audit-events` | tenant-scoped audit | audit.view |
 | `POST /api/v1/demo/scenarios/{name}` | inject bounded demo scenario | development-only + demo.manage |
 
-The incident list/detail routes, M2 demo freshness route, four M3 action-proposal routes, M4 contract/manifest routes, and M5 asset/impact/lineage event routes above are implemented. The generic `GET/POST /api/v1/contracts` row is illustrative: only `GET /api/v1/contracts` is implemented; creation uses the dataset-specific version route. The separate timeline and diagnosis routes, older generic `/proposals` routes, generic demo scenario route and other resource operations remain planned. M2 timeline events are embedded in `GET /api/v1/incidents/{id}`. M2 run trigger accepts only `{}`, `{"parameters":{}}` or one of the fixed `demo_fault` codes `F02`, `F03`, `F04`; the header holds the `Idempotency-Key`. The illustrative trigger below is a future contract and is not accepted by the current API.
+The incident list/detail routes, M2 demo freshness route, M3 action-proposal routes plus the M6 proposal list, M4 contract/manifest routes, and M5 asset/impact/lineage event routes above are implemented. The generic `GET/POST /api/v1/contracts` row is illustrative: only `GET /api/v1/contracts` is implemented; creation uses the dataset-specific version route. The separate timeline and diagnosis routes, older generic `/proposals` routes, generic demo scenario route and other resource operations remain planned. M2 timeline events are embedded in `GET /api/v1/incidents/{id}`. M2 run trigger accepts only `{}`, `{"parameters":{}}` or one of the fixed `demo_fault` codes `F02`, `F03`, `F04`; the header holds the `Idempotency-Key`. The illustrative trigger below is a future contract and is not accepted by the current API.
 
 ## Example trigger (illustrative)
 ```json

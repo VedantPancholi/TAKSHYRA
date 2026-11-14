@@ -45,6 +45,21 @@ def proposal_view(db: Session, proposal: ActionProposal) -> dict:
     }
 
 
+@router.get("")
+def list_proposals(principal: Identity = Depends(identity), db: Session = Depends(session)):
+    rows = db.scalars(
+        select(ActionProposal).where(ActionProposal.tenant_id == principal.tenant_id)
+        .order_by(ActionProposal.created_at.desc(), ActionProposal.id.desc()).limit(50)
+    ).all()
+    return {"items": [
+        {"id": row.id, "action_type": row.action_type, "target_id": row.target_id,
+         "policy_decision": row.policy_decision, "status": row.status,
+         "requester_id": row.requester_id, "created_at": row.created_at,
+         "expires_at": row.expires_at}
+        for row in rows
+    ]}
+
+
 @router.post("", status_code=201)
 def propose_action(
     request: ProposalRequest,

@@ -16,5 +16,6 @@ COPY scripts/smoke_m6.py ./scripts/smoke_m6.py
 COPY scripts/smoke_m8.py ./scripts/smoke_m8.py
 COPY scripts/smoke_m9.py ./scripts/smoke_m9.py
 COPY scripts/smoke_m9_adf.py ./scripts/smoke_m9_adf.py
+COPY scripts/smoke_m9_adf_faults.py ./scripts/smoke_m9_adf_faults.py
 COPY scripts/adf_ingest.py ./scripts/adf_ingest.py
 EXPOSE 8000

@@ -4,6 +4,8 @@ This is a **blueprint**. Implementation status lives only in [IMPLEMENTATION_STA
 
 The implemented local milestones are documented in [M1](37_M1_LOCAL_CORE.md), [M2](38_M2_INCIDENTS.md), [M3](39_M3_POLICY_ACTIONS.md), [M4](40_M4_CONTRACTS.md), [M5](41_M5_LINEAGE.md), [M6](42_M6_OPERATIONS_UI.md), [M7](43_M7_DIAGNOSIS.md), [M8](44_M8_SHADOW_RECOVERY.md), and the [M9 first slice](45_M9_STREAMING_AZURE.md). Later capabilities in this index remain specifications.
 
+The ADF failure-case matrix and verified commands are in [M9 ADF failure testing](46_M9_ADF_FAILURE_TESTING.md).
+
 | Concern | Authoritative specification |
 |---|---|
 | What/why/who | [01_PRODUCT_VISION.md](01_PRODUCT_VISION.md), [02_PERSONAS_AND_STORIES.md](02_PERSONAS_AND_STORIES.md), [29_BRAND_AND_PRODUCT_STRATEGY.md](29_BRAND_AND_PRODUCT_STRATEGY.md) |

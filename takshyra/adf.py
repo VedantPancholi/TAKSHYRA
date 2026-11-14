@@ -76,8 +76,9 @@ class AdfObserver:
                 run_id = run.get("runId")
                 pipeline = run.get("pipelineName")
                 status = run.get("status")
-                if not (isinstance(run_id, str) and len(run_id) <= 128 and
-                        isinstance(pipeline, str) and len(pipeline) <= 128 and status in STATUS):
+                if not (isinstance(run_id, str) and 1 <= len(run_id) <= 128 and
+                        isinstance(pipeline, str) and 1 <= len(pipeline) <= 128 and
+                        isinstance(status, str) and status in STATUS):
                     raise ValueError("Invalid ADF run fields")
                 items.append({
                     "source": "azure_adf", "tenant_id": self.tenant_id,

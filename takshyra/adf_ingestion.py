@@ -72,9 +72,15 @@ def ingest_runs(
     db: Session, *, scope: AdfScope, binding: AdfPipelineBinding, result: dict,
     provenance: str = "real observed",
 ) -> dict[str, int]:
-    """Ingest a complete, normalized observer result. Caller owns the transaction."""
+    """Ingest a complete observer result atomically; caller commits the outer transaction."""
     if (binding.tenant_id != scope.tenant_id or binding.factory != scope.target or
-            not db.scalar(select(Pipeline.id).where(
+            not db.scalar(select(AdfPipelineBinding.id).where(
+                AdfPipelineBinding.id == binding.id,
+                AdfPipelineBinding.tenant_id == scope.tenant_id,
+                AdfPipelineBinding.pipeline_id == binding.pipeline_id,
+                AdfPipelineBinding.factory == scope.target,
+                AdfPipelineBinding.external_name == binding.external_name,
+            )) or not db.scalar(select(Pipeline.id).where(
                 Pipeline.tenant_id == scope.tenant_id,
                 Pipeline.id == binding.pipeline_id,
                 Pipeline.source_kind == "azure_adf_v1",
@@ -85,6 +91,20 @@ def ingest_runs(
         raise ValueError("A complete ADF observer result is required")
     if provenance not in {"real observed", "simulated"}:
         raise ValueError("Unsupported ADF provenance")
+    with db.begin_nested():
+        return _persist_runs(db, scope=scope, binding=binding, result=result, provenance=provenance)
+
+
+def _persist_runs(
+    db: Session, *, scope: AdfScope, binding: AdfPipelineBinding, result: dict,
+    provenance: str,
+) -> dict[str, int]:
+    # Serialize polls for one binding on PostgreSQL before checking run IDs.
+    if not db.scalar(select(AdfPipelineBinding.id).where(
+        AdfPipelineBinding.id == binding.id,
+        AdfPipelineBinding.tenant_id == scope.tenant_id,
+    ).with_for_update()):
+        raise PermissionError("ADF binding disappeared during ingestion")
     counts = {"created": 0, "updated": 0, "incidents": 0, "skipped": 0}
     seen: set[str] = set()
     for item in result["items"]:
@@ -97,7 +117,8 @@ def ingest_runs(
             continue
         run_id = item.get("run_id")
         status = item.get("status")
-        if not isinstance(run_id, str) or not 1 <= len(run_id) <= 128 or status not in STATUS:
+        if (not isinstance(run_id, str) or not 1 <= len(run_id) <= 128 or
+                not isinstance(status, str) or status not in STATUS):
             raise ValueError("Invalid ADF run fields")
         if run_id in seen:
             raise ValueError("Duplicate ADF run in one response")

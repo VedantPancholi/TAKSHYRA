@@ -37,3 +37,14 @@ docker compose exec -T api python scripts/smoke_m9_adf.py
 ```
 
 This smoke uses `simulated` provenance and never contacts Azure. The broker and other Azure adapters described above still remain.
+
+## Failure-case checks
+
+The follow-up test branch adds malformed-provider and transaction tests. A batch is atomic even if the caller catches an error and commits its outer transaction. The importer verifies a stored binding and locks it while ingesting on PostgreSQL, so overlapping polls for the same ADF pipeline are serialized. Run the mocked PostgreSQL fault check after Compose is healthy:
+
+```powershell
+docker compose exec -T api python scripts/smoke_m9_adf_faults.py
+```
+
+This check exercises a late malformed run, repeat polling and two overlapping polls. It does not connect to Azure.
+See the [failure-case matrix](46_M9_ADF_FAILURE_TESTING.md) for the tested boundaries and remaining limits.

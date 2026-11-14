@@ -106,3 +106,41 @@ def test_adf_mock_rejects_repeated_cursor_and_caps_output():
     observer = AdfObserver(tenant_id="tenant-a", allowed_targets=frozenset({scope.target}), transport=oversized)
     result = observer.query(scope, until - timedelta(minutes=1), until, limit=2)
     assert len(result["items"]) == 2 and result["truncated"]
+
+
+@pytest.mark.parametrize("run", [
+    {"runId": "r1", "pipelineName": "orders", "status": []},
+    {"runId": "", "pipelineName": "orders", "status": "Failed"},
+    {"runId": "r1", "pipelineName": "", "status": "Failed"},
+])
+def test_adf_observer_rejects_malformed_run_fields(run):
+    scope = AdfScope("tenant-a", "00000000-0000-0000-0000-000000000001", "rg-test", "factory-test")
+    observer = AdfObserver(
+        tenant_id=scope.tenant_id, allowed_targets=frozenset({scope.target}),
+        transport=lambda _url, _body: {"value": [run]},
+    )
+    until = datetime.now(timezone.utc)
+    with pytest.raises(ValueError, match="Invalid ADF run fields"):
+        observer.query(scope, until - timedelta(minutes=1), until)
+
+
+def test_adf_observer_rejects_unsafe_windows_and_limits_before_transport():
+    scope = AdfScope("tenant-a", "00000000-0000-0000-0000-000000000001", "rg-test", "factory-test")
+    calls = []
+    observer = AdfObserver(
+        tenant_id=scope.tenant_id, allowed_targets=frozenset({scope.target}),
+        transport=lambda _url, _body: calls.append(1) or {"value": []},
+    )
+    until = datetime.now(timezone.utc)
+    for since, end in (
+        (until, until),
+        (until, until - timedelta(seconds=1)),
+        (until - timedelta(hours=24, seconds=1), until),
+        (until.replace(tzinfo=None) - timedelta(minutes=1), until),
+    ):
+        with pytest.raises(ValueError):
+            observer.query(scope, since, end)
+    for limit in (0, 101):
+        with pytest.raises(ValueError):
+            observer.query(scope, until - timedelta(minutes=1), until, limit=limit)
+    assert calls == []

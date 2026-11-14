@@ -3,7 +3,7 @@
 **Takshyra Data Reliability Platform** — an evidence-first, policy-governed Data Reliability Control Plane.
 
 > **Tagline:** Intelligence Behind Every Decision.
-> **Status:** M1–M8 and the first M9 slice are merged. The current M9 branch adds tenant-scoped ADF run ingestion and incident evidence. See [implementation status](docs/IMPLEMENTATION_STATUS.md). No live cloud connection or autonomous agent is verified.
+> **Status:** M1–M8 and the first two M9 slices are merged. A separate test branch hardens ADF ingestion against malformed batches and overlapping polls. See [implementation status](docs/IMPLEMENTATION_STATUS.md). No live cloud connection or autonomous agent is verified.
 > **Mission:** Help engineering teams determine what went wrong with data, which assets are affected, what actions are safe, and whether recovery actually restored correctness.
 
 ## The promise

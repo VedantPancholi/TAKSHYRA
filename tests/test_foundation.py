@@ -332,6 +332,36 @@ def test_expired_leases_stop_and_open_incident(local):
     assert incidents[0]["error_code"] == "LEASE_EXHAUSTED"
 
 
+def test_proposal_list_handoff_is_tenant_scoped(local):
+    client = TestClient(app)
+    a_headers, a_credentials = auth()
+    a_approver_headers, a_approver_credentials = auth("demo-a-approver")
+    b_headers, b_credentials = auth("demo-b-executor", "demo-b")
+    assert client.get("/api/v1/action-proposals").status_code == 401
+    assert client.get("/api/v1/action-proposals", headers=a_headers, auth=a_credentials).json() == {"items": []}
+
+    a_headers["Idempotency-Key"] = "handoff-a-001"
+    a_pipeline = pipeline_id(client)
+    created_a = client.post("/api/v1/action-proposals", headers=a_headers, auth=a_credentials,
+                            json={"action_type": "pipeline.pause_demo", "target_id": a_pipeline,
+                                  "parameters": {}}).json()
+    b_headers["Idempotency-Key"] = "handoff-b-001"
+    b_pipeline = pipeline_id(client, "demo-b-executor", "demo-b")
+    created_b = client.post("/api/v1/action-proposals", headers=b_headers, auth=b_credentials,
+                            json={"action_type": "pipeline.pause_demo", "target_id": b_pipeline,
+                                  "parameters": {}}).json()
+
+    for headers, credentials in ((a_headers, a_credentials), (a_approver_headers, a_approver_credentials)):
+        listed = client.get("/api/v1/action-proposals", headers=headers, auth=credentials)
+        assert listed.status_code == 200
+        assert [item["id"] for item in listed.json()["items"]] == [created_a["id"]]
+        assert listed.json()["items"][0]["status"] == "AWAITING_APPROVAL"
+        assert "parameters" not in listed.json()["items"][0]
+    assert [item["id"] for item in client.get(
+        "/api/v1/action-proposals", headers=b_headers, auth=b_credentials,
+    ).json()["items"]] == [created_b["id"]]
+
+
 def test_m3_allow_denial_idempotency_and_local_effects(local):
     _, engine = local
     client = TestClient(app)

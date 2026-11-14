@@ -71,8 +71,10 @@ pause = actor("executor", "/api/core/action-proposals", "POST", {
     "action_type": "pipeline.pause_demo", "target_id": pipeline_id, "parameters": {},
 }, uuid.uuid4().hex)
 assert pause["status"] == "AWAITING_APPROVAL"
+approver_queue = actor("approver", "/api/core/action-proposals")["items"]
+assert approver_queue[0]["id"] == pause["id"] and approver_queue[0]["status"] == "AWAITING_APPROVAL"
 approved = actor("approver", f"/api/core/action-proposals/{pause['id']}/approve", "POST", {})
 assert approved["status"] == "APPROVED"
 done = actor("executor", f"/api/core/action-proposals/{pause['id']}/execute", "POST", {})
 assert done["verification_status"] == "VERIFIED"
-print("M6 web smoke passed: page, proxy allowlist, viewer denial, incident, annotation, approval and verification")
+print("M6 web smoke passed: page, proxy allowlist, viewer denial, incident, proposal queue, approval and verification")

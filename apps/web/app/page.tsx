@@ -43,6 +43,16 @@ type Proposal = {
   verification_status: string | null;
   timeline: { kind: string; code: string; occurred_at: string }[];
 };
+type ProposalSummary = Pick<
+  Proposal,
+  | "id"
+  | "action_type"
+  | "target_id"
+  | "policy_decision"
+  | "status"
+  | "requester_id"
+  | "expires_at"
+> & { created_at: string };
 type Impact = {
   items?: { id: string; name?: string; impact_type?: string }[];
   affected_assets?: { id: string; name?: string; impact_type?: string }[];
@@ -100,7 +110,7 @@ export default function OperationsPage() {
   const [selected, setSelected] = useState<Incident | null>(null);
   const [impact, setImpact] = useState<Impact | null>(null);
   const [proposal, setProposal] = useState<Proposal | null>(null);
-  const [proposalId, setProposalId] = useState("");
+  const [recentProposals, setRecentProposals] = useState<ProposalSummary[]>([]);
   const [note, setNote] = useState("Checked incident evidence");
   const [actionType, setActionType] = useState<
     "incident.annotate" | "pipeline.pause_demo"
@@ -130,6 +140,15 @@ export default function OperationsPage() {
     setIncidents(list.items);
   }
 
+  async function loadProposals(active: Session) {
+    const list = await api<{ items: ProposalSummary[] }>(
+      active,
+      "GET",
+      "action-proposals",
+    );
+    setRecentProposals(list.items);
+  }
+
   function signIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     void perform(async () => {
@@ -150,28 +169,30 @@ export default function OperationsPage() {
         setSelected(null);
         setImpact(null);
         setProposal(null);
-        setProposalId("");
+        setRecentProposals([]);
       }
       setWorkspaceTenant(active.tenant);
       setSession(active);
       setPassword("");
-      const [list, pipeList] = await Promise.all([
+      const [list, pipeList, proposals] = await Promise.all([
         api<{ items: Incident[] }>(active, "GET", "incidents"),
         api<{ items: { id: string; name: string }[] }>(
           active,
           "GET",
           "pipelines",
         ),
+        api<{ items: ProposalSummary[] }>(active, "GET", "action-proposals"),
       ]);
       setIncidents(list.items);
       setPipelines(pipeList.items);
-      if (proposalId) {
+      setRecentProposals(proposals.items);
+      if (proposal && (!workspaceTenant || workspaceTenant === active.tenant)) {
         try {
           setProposal(
             await api<Proposal>(
               active,
               "GET",
-              `action-proposals/${proposalId}`,
+              `action-proposals/${proposal.id}`,
             ),
           );
         } catch {
@@ -187,8 +208,9 @@ export default function OperationsPage() {
     setPipelines([]);
     setSelected(null);
     setImpact(null);
+    setRecentProposals([]);
     setNotice(
-      "Signed out. Proposal ID stays on this page for the approval handoff.",
+      "Signed out. Sign in with another role to continue the proposal handoff.",
     );
   }
 
@@ -255,20 +277,19 @@ export default function OperationsPage() {
         crypto.randomUUID(),
       );
       setProposal(created);
-      setProposalId(created.id);
+      await loadProposals(active);
       setNotice(
         "Proposal evaluated by the server. Review its decision before execution.",
       );
     });
   }
 
-  function openProposal(active: Session, event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  function openProposal(active: Session, id: string) {
     void perform(async () => {
       const found = await api<Proposal>(
         active,
         "GET",
-        `action-proposals/${proposalId.trim()}`,
+        `action-proposals/${id}`,
       );
       setProposal(found);
       setNotice("Proposal loaded.");
@@ -285,6 +306,7 @@ export default function OperationsPage() {
         {},
       );
       setProposal(updated);
+      await loadProposals(active);
       setNotice(
         verb === "approve"
           ? "Exact proposal approved."
@@ -300,6 +322,15 @@ export default function OperationsPage() {
   const canExecute = session?.role === "executor" || session?.role === "admin";
   const canApprove = session?.role === "approver" || session?.role === "admin";
   const impactItems = impact?.affected_assets ?? impact?.items ?? [];
+  const visibleProposals = canApprove
+    ? recentProposals
+        .slice()
+        .sort(
+          (a, b) =>
+            Number(b.status === "AWAITING_APPROVAL") -
+            Number(a.status === "AWAITING_APPROVAL"),
+        )
+    : recentProposals;
 
   return (
     <main className="shell">
@@ -607,6 +638,11 @@ export default function OperationsPage() {
               Policy decides · People review · API verifies
             </span>
           </div>
+          <p className="demo-scope">
+            This demo uses one fixed seeded pipeline. An annotation records
+            investigation context; the pause action records a simulated marker.
+            Neither action repairs data or stops a real pipeline.
+          </p>
           <section className="work-grid action-grid">
             <div className="panel action-card">
               <div className="panel-heading">
@@ -669,25 +705,46 @@ export default function OperationsPage() {
                   An executor account is required to propose actions.
                 </p>
               )}
-              <form
-                className="lookup"
-                onSubmit={(event) => openProposal(session, event)}
-              >
-                <label>
-                  Open proposal by ID
-                  <input
-                    value={proposalId}
-                    onChange={(event) => setProposalId(event.target.value)}
-                    placeholder="Proposal UUID"
-                  />
-                </label>
-                <button
-                  className="outline"
-                  disabled={!proposalId.trim() || busy}
-                >
-                  Open
-                </button>
-              </form>
+              <div className="recent-proposals">
+                <div className="recent-heading">
+                  <strong>
+                    {canApprove ? "Proposals to review" : "Recent proposals"}
+                  </strong>
+                  <button
+                    className="text-button"
+                    onClick={() => void perform(() => loadProposals(session))}
+                    disabled={busy}
+                  >
+                    Refresh
+                  </button>
+                </div>
+                {visibleProposals.length === 0 ? (
+                  <p className="form-hint">No proposals in this tenant yet.</p>
+                ) : (
+                  <div className="proposal-list">
+                    {visibleProposals.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        className={`proposal-row ${proposal?.id === item.id ? "selected" : ""}`}
+                        aria-pressed={proposal?.id === item.id}
+                        onClick={() => openProposal(session, item.id)}
+                        disabled={busy}
+                      >
+                        <span>
+                          <strong>
+                            {item.action_type.replaceAll("_", " ")}
+                          </strong>
+                          <small>
+                            {stamp(item.created_at)} · {item.id.slice(0, 8)}
+                          </small>
+                        </span>
+                        <Pill value={item.status} />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
             <div className="panel proposal-card">
               <div className="panel-heading">
@@ -698,8 +755,8 @@ export default function OperationsPage() {
               </div>
               {!proposal ? (
                 <div className="empty">
-                  Create or open a proposal to review policy, approval and
-                  verification.
+                  Create or select a recent proposal to review policy, approval
+                  and verification.
                 </div>
               ) : (
                 <>

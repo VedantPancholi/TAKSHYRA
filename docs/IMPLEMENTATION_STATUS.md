@@ -1,6 +1,6 @@
 # Implementation status — verified engineering record
 
-**Updated:** 2026-11-02
+**Updated:** 2026-11-14
 **Stage:** M0–M6 local milestones implemented for development. Five Compose services and the M6 web journey smoke passed on 2026-11-02.
 
 ## Reconnaissance
@@ -66,6 +66,12 @@
 - Added a fifth Compose service on loopback port 3000, Node lockfile, web typecheck/build CI job and `scripts/smoke_m6.py`. The smoke covers page delivery, proxy allowlist, anonymous denial, viewer write denial, incident read, impact, annotation execution, separate approver approval and requester execution. The Next.js 16.4.4 dependency lock was audited with zero npm vulnerabilities. See [M6 runbook](42_M6_OPERATIONS_UI.md).
 - Limitations: the UI keeps Basic credentials in tab memory until account switch/reload, and the user must re-enter them for each role handoff. No production identity, durable browser session, full asset explorer, real pause effect or incident resolution exists. The console is for loopback development only.
 
+### M6 proposal handoff follow-up (2026-11-14)
+
+- Added `GET /api/v1/action-proposals`, returning up to 50 recent summaries for the authenticated tenant. The workbench lists these actions and prioritizes pending approvals for approvers, so an account switch or page reload no longer requires typing a proposal ID. Selecting a summary fetches the full proposal through the existing tenant-scoped detail route.
+- Clarified in the console and runbook that annotation stores investigation context and `pipeline.pause_demo` records only a marker. The current fixed seeded pipeline is a control-workflow demonstration, not an implementation of real pipeline repair.
+- Local checks: 21 Python tests passed with one upstream Starlette/AnyIO deprecation warning; Ruff and docs validation passed; the production web image built and typechecked. The existing interactive demo stack was kept running and was not replaced for this follow-up. The updated Compose smoke is a CI gate on the branch.
+
 ## Implemented and locally verified
 
 - Files added: `pyproject.toml`, `uv.lock`, `takshyra/{api,auth,config,db,models,runner,seed,worker}.py`, `alembic.ini`, `migrations/`, `tests/test_foundation.py`, `Dockerfile`, `compose.yaml`, `scripts/smoke.py`, `.github/workflows/m1.yml`, and `docs/37_M1_LOCAL_CORE.md`. Updated `.env.example`, `README.md`, `Makefile`, API/local docs and changelog.
@@ -117,6 +123,8 @@
 | M6 `npm audit` from the locked web dependency tree | Exit 0; zero vulnerabilities. |
 | M6 Python Ruff and blueprint validator | Exit 0; Ruff passed; 15 required files, 74 internal Markdown links and example JSON validated. |
 | M6 Python pytest suite | Exit 0; 20 passed, one upstream Starlette/AnyIO deprecation warning. |
+| M6 handoff follow-up Python pytest suite | Exit 0; 21 passed, one upstream Starlette/AnyIO deprecation warning. |
+| M6 handoff follow-up web Docker build | Exit 0; typecheck and Next.js production build passed without restarting the interactive demo stack. |
 
 ## Security and remaining risks
 

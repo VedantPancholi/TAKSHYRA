@@ -19,9 +19,9 @@ The request sends only server-created incident, run and check identifiers and bo
 
 No Ollama process or model is bundled with Compose. Without one, leave the provider on `rules`; the incident, policy and pipeline flows continue normally.
 
-## M7 work still ahead
+## Verified memory in M8
 
-- Add independently verified recovery outcomes in M8. Until then `similar_cases` is empty and `memory_status` is `NO_VERIFIED_OUTCOMES`; provisional diagnoses and action-effect checks are never treated as verified memory.
+- M8 retrieves up to three independently verified recovery outcomes for later incidents with the same error code in the same tenant. These are evidence of a previous local repair, not proof of the new incident's cause. See [M8 shadow recovery](44_M8_SHADOW_RECOVERY.md).
 - Expand labeled evaluation fixtures when real connector evidence exists. The current tests cover no-model operation, missing evidence IDs, forbidden output fields, unsafe next checks, local-only endpoint configuration and model fallback.
 
 Do not present these hypotheses as confirmed causes. The demo pipeline and its faults remain synthetic.

@@ -17,6 +17,7 @@ from takshyra.contracts_api import active_orders, router as contracts_router
 from takshyra.config import Settings
 from takshyra.db import session
 from takshyra.diagnosis_api import router as diagnosis_router
+from takshyra.recovery_api import router as recovery_router
 from takshyra.incidents import record_observation
 from takshyra.lineage_api import router as lineage_router
 from takshyra.models import Attempt, AuditEvent, ContractVersion, Diagnosis, Incident, IncidentEvent, Pipeline, QualityResult, Run, now
@@ -27,6 +28,7 @@ app.include_router(actions_router)
 app.include_router(contracts_router)
 app.include_router(lineage_router)
 app.include_router(diagnosis_router)
+app.include_router(recovery_router)
 log = logging.getLogger(__name__)
 
 

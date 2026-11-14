@@ -2,7 +2,7 @@
 
 import hashlib
 
-from sqlalchemy import select
+from sqlalchemy import case, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
@@ -44,6 +44,8 @@ def record_observation(
             "occurrence_count": Incident.occurrence_count + 1,
             "last_seen_at": at,
             "run_id": run_id,
+            "status": case((Incident.status == "RESOLVED", "OPEN"), else_=Incident.status),
+            "owner_id": case((Incident.status == "RESOLVED", None), else_=Incident.owner_id),
         },
     ).returning(Incident.id)
     incident_id = db.scalar(stmt)

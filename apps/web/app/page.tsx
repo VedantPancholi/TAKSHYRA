@@ -76,6 +76,19 @@ type Diagnosis = {
     next_checks: string[];
   }[];
 };
+type ShadowReplay = {
+  id: string;
+  status: string;
+  reason: string;
+  source_run_id: string;
+  baseline_row_count: number | null;
+  replay_row_count: number | null;
+};
+type RecoveryOutcome = {
+  status: string;
+  reason?: string;
+  recovery_run_id?: string;
+};
 
 async function api<T>(
   session: Session,
@@ -128,11 +141,13 @@ export default function OperationsPage() {
   const [selected, setSelected] = useState<Incident | null>(null);
   const [impact, setImpact] = useState<Impact | null>(null);
   const [diagnosis, setDiagnosis] = useState<Diagnosis | null>(null);
+  const [shadowReplay, setShadowReplay] = useState<ShadowReplay | null>(null);
+  const [recoveryOutcome, setRecoveryOutcome] = useState<RecoveryOutcome | null>(null);
   const [proposal, setProposal] = useState<Proposal | null>(null);
   const [recentProposals, setRecentProposals] = useState<ProposalSummary[]>([]);
   const [note, setNote] = useState("Checked incident evidence");
   const [actionType, setActionType] = useState<
-    "incident.annotate" | "pipeline.pause_demo"
+    "incident.annotate" | "pipeline.pause_demo" | "pipeline.reprocess_demo"
   >("incident.annotate");
   const [pipelines, setPipelines] = useState<{ id: string; name: string }[]>(
     [],
@@ -188,6 +203,8 @@ export default function OperationsPage() {
         setSelected(null);
         setImpact(null);
         setDiagnosis(null);
+        setShadowReplay(null);
+        setRecoveryOutcome(null);
         setProposal(null);
         setRecentProposals([]);
       }
@@ -229,6 +246,8 @@ export default function OperationsPage() {
     setSelected(null);
     setImpact(null);
     setDiagnosis(null);
+    setShadowReplay(null);
+    setRecoveryOutcome(null);
     setRecentProposals([]);
     setNotice(
       "Signed out. Sign in with another role to continue the proposal handoff.",
@@ -237,14 +256,17 @@ export default function OperationsPage() {
 
   function selectIncident(active: Session, incident: Incident) {
     void perform(async () => {
-      const [detail, radius, diagnoses] = await Promise.all([
+      const [detail, radius, diagnoses, replays] = await Promise.all([
         api<Incident>(active, "GET", `incidents/${incident.id}`),
         api<Impact>(active, "GET", `incidents/${incident.id}/impact`),
         api<{ items: Diagnosis[] }>(active, "GET", `incidents/${incident.id}/diagnoses`),
+        api<{ items: ShadowReplay[] }>(active, "GET", `incidents/${incident.id}/shadow-replays`),
       ]);
       setSelected(detail);
       setImpact(radius);
       setDiagnosis(diagnoses.items[0] ?? null);
+      setShadowReplay(replays.items.find((item) => item.source_run_id === detail.run_id) ?? null);
+      setActionType("incident.annotate");
     });
   }
 
@@ -260,6 +282,7 @@ export default function OperationsPage() {
       await loadIncidents(active);
       setSelected(created);
       setDiagnosis(null);
+      setShadowReplay(null);
       setImpact(
         await api<Impact>(active, "GET", `incidents/${created.id}/impact`),
       );
@@ -294,6 +317,37 @@ export default function OperationsPage() {
     });
   }
 
+  function createRowDeficit(active: Session) {
+    if (!pipelines[0]) return;
+    void perform(async () => {
+      await api(active, "POST", `pipelines/${pipelines[0].id}/runs`,
+        { demo_fault: "F04" }, crypto.randomUUID());
+      setNotice("Row deficit run queued. Refresh after the worker finishes, then select its quality incident.");
+    });
+  }
+
+  function replayIncident(active: Session) {
+    if (!selected) return;
+    void perform(async () => {
+      const result = await api<ShadowReplay>(active, "POST",
+        `incidents/${selected.id}/shadow-replays`, {});
+      setShadowReplay(result);
+      setNotice(`Shadow replay ${result.status.toLowerCase()}: ${result.reason.replaceAll("_", " ")}.`);
+    });
+  }
+
+  function verifyRecovery(active: Session) {
+    if (!proposal) return;
+    void perform(async () => {
+      const result = await api<RecoveryOutcome>(active, "POST",
+        `action-proposals/${proposal.id}/verify-recovery`, {});
+      setRecoveryOutcome(result);
+      await loadIncidents(active);
+      if (selected) setSelected(await api<Incident>(active, "GET", `incidents/${selected.id}`));
+      setNotice(`Recovery check: ${result.status.toLowerCase().replaceAll("_", " ")}.`);
+    });
+  }
+
   function createProposal(active: Session) {
     if (!selected) return;
     void perform(async () => {
@@ -304,11 +358,13 @@ export default function OperationsPage() {
         {
           action_type: actionType,
           target_id:
-            actionType === "incident.annotate"
-              ? selected.id
+            actionType === "incident.annotate" ? selected.id
+              : actionType === "pipeline.reprocess_demo" ? selected.run_id
               : selected.pipeline_id,
           parameters:
-            actionType === "incident.annotate" ? { note: note.trim() } : {},
+            actionType === "incident.annotate" ? { note: note.trim() }
+              : actionType === "pipeline.reprocess_demo" ? { shadow_report_id: shadowReplay?.id ?? "" }
+              : {},
         },
         crypto.randomUUID(),
       );
@@ -328,6 +384,9 @@ export default function OperationsPage() {
         `action-proposals/${id}`,
       );
       setProposal(found);
+      setRecoveryOutcome(found.action_type === "pipeline.reprocess_demo"
+        ? await api<RecoveryOutcome>(active, "GET", `action-proposals/${id}/recovery-outcome`)
+        : null);
       setNotice("Proposal loaded.");
     });
   }
@@ -507,13 +566,14 @@ export default function OperationsPage() {
               <h2>Incident center</h2>
             </div>
             {canExecute && (
-              <button
-                className="outline"
-                onClick={() => createDemo(session)}
-                disabled={busy || pipelines.length === 0}
-              >
-                + Create demo incident
-              </button>
+              <div className="button-row">
+                <button className="outline" onClick={() => createDemo(session)} disabled={busy || pipelines.length === 0}>
+                  + Create freshness incident
+                </button>
+                <button className="outline" onClick={() => createRowDeficit(session)} disabled={busy || pipelines.length === 0}>
+                  + Create row deficit run
+                </button>
+              </div>
             )}
           </div>
           <section className="work-grid">
@@ -650,12 +710,25 @@ export default function OperationsPage() {
                         {diagnosis.memory_status === "NO_VERIFIED_OUTCOMES" && (
                           <p className="muted">No independently verified prior cases are available yet.</p>
                         )}
+                        {diagnosis.similar_cases.map((item) => (
+                          <p key={item.id} className="muted">Verified prior case {item.id.slice(0, 8)}: {item.summary}</p>
+                        ))}
                       </>
                     ) : <p className="muted">No diagnosis has been recorded for this incident.</p>}
                     {canExecute && (
                       <button className="secondary" onClick={() => diagnose(session)} disabled={busy}>
                         {diagnosis ? "Refresh diagnosis" : "Generate diagnosis"}
                       </button>
+                    )}
+                  </div>
+                  <div className="detail-block">
+                    <h4>Shadow replay</h4>
+                    <p className="muted">Replay the fixed local source in scratch space to test whether the missing row can be restored.</p>
+                    {shadowReplay ? (
+                      <p><Pill value={shadowReplay.status} /> {shadowReplay.reason.replaceAll("_", " ")}. Rows: {shadowReplay.baseline_row_count ?? "?"} → {shadowReplay.replay_row_count ?? "?"}.</p>
+                    ) : <p className="muted">No replay recorded for this incident.</p>}
+                    {canExecute && selected.status !== "RESOLVED" && selected.run_id && (
+                      <button className="secondary" onClick={() => replayIncident(session)} disabled={busy}>Run shadow replay</button>
                     )}
                   </div>
                   <div className="detail-block">
@@ -700,9 +773,9 @@ export default function OperationsPage() {
             </span>
           </div>
           <p className="demo-scope">
-            This demo uses one fixed seeded pipeline. An annotation records
-            investigation context; the pause action records a simulated marker.
-            Neither action repairs data or stops a real pipeline.
+            This demo uses one fixed seeded pipeline. A supported row deficit can be
+            reprocessed after a shadow replay and a separate approval. Recovery is
+            checked only after the new run finishes. The pause action is simulated.
           </p>
           <section className="work-grid action-grid">
             <div className="panel action-card">
@@ -729,6 +802,9 @@ export default function OperationsPage() {
                   <option value="pipeline.pause_demo">
                     Simulate pipeline pause · approval required
                   </option>
+                  <option value="pipeline.reprocess_demo">
+                    Reprocess row deficit · shadow replay and approval required
+                  </option>
                 </select>
               </label>
               {actionType === "incident.annotate" && (
@@ -749,6 +825,9 @@ export default function OperationsPage() {
                   worker.
                 </p>
               )}
+              {actionType === "pipeline.reprocess_demo" && (
+                <p className="form-hint">Select a quality incident with a supported shadow replay. A separate approver must review the exact payload.</p>
+              )}
               <button
                 className="primary"
                 onClick={() => createProposal(session)}
@@ -756,6 +835,7 @@ export default function OperationsPage() {
                   !canExecute ||
                   !selected ||
                   (actionType === "incident.annotate" && !note.trim()) ||
+                  (actionType === "pipeline.reprocess_demo" && (!selected.run_id || shadowReplay?.status !== "SUPPORTED")) ||
                   busy
                 }
               >
@@ -838,6 +918,7 @@ export default function OperationsPage() {
                       <dt>Note</dt>
                       <dd>{proposal.parameters.note ?? "—"}</dd>
                     </div>
+                    {proposal.parameters.shadow_report_id && <div><dt>Shadow report</dt><dd className="mono">{proposal.parameters.shadow_report_id}</dd></div>}
                     <div>
                       <dt>Policy reason</dt>
                       <dd>{proposal.policy_reason}</dd>
@@ -880,6 +961,14 @@ export default function OperationsPage() {
                         </button>
                       )}
                   </div>
+                  {proposal.action_type === "pipeline.reprocess_demo" && proposal.status === "VERIFIED" && (
+                    <div className="detail-block">
+                      <h4>Data recovery</h4>
+                      <p className="muted">Action verification confirms the new run was queued. Check the data after the worker completes.</p>
+                      {recoveryOutcome && <p><Pill value={recoveryOutcome.status} /> {recoveryOutcome.reason?.replaceAll("_", " ")}</p>}
+                      {canExecute && <button className="secondary" onClick={() => verifyRecovery(session)} disabled={busy}>Verify recovered data</button>}
+                    </div>
+                  )}
                   <div className="detail-block">
                     <h4>Action timeline</h4>
                     <ol className="timeline">

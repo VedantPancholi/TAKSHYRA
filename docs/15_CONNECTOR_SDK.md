@@ -39,3 +39,5 @@ Retry only retryable categories with max attempts/deadlines. Unknown is not auto
 
 ## Prioritization
 LocalRunner (R1) → ADF read-only (R5) → Azure Monitor metrics (R5) → Kafka event reader (R5) → Event Hubs sandbox reader (R5) → ADLS/ClickHouse optional later. Do not promise every connector in v1.
+
+AWS is a separate adapter track after the common connector contract is implemented. Its first slice should observe one chosen pipeline service and normalize run, quality and lineage evidence into the same tenant-scoped records as the Azure adapter. Each provider is configured per tenant and resource allowlist. Provider write actions require separate capabilities, exact policy, approval and read-back verification. M8 does not implement either cloud adapter. New company pipelines are built in the selected orchestration platform and then onboarded through this observation contract; a generic pipeline builder is outside the current milestones.

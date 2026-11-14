@@ -1,7 +1,16 @@
 # Implementation status — verified engineering record
 
-**Updated:** 2026-11-14
-**Stage:** M0–M6 local milestones implemented for development. The merged M6 proposal handoff was rebuilt and its Compose smoke passed on 2026-11-14. M7 diagnosis work has started on a separate branch; its optional AI and memory portions are not implemented.
+**Updated:** 2026-11-15
+**Stage:** M0–M7 local milestones are on main. M8 local shadow replay and recovery verification are implemented on `feat/m8-shadow-verification` and awaiting merge. Azure and AWS adapters are not implemented.
+
+## M8 shadow recovery branch (2026-11-15)
+
+- A bounded `F04` shadow replay copies the fixed source into temporary scratch storage, evaluates the bound contract without the row drop, compares row counts and publication checks, and records `SUPPORTED`, `PARTIAL` or `IMPOSSIBLE`. Scratch files are removed after the replay. The replay is not a separate process or security sandbox.
+- A new `pipeline.reprocess_demo` action requires a supported report, source and contract rechecks, and exact approval by a different role. Execution queues a new local run. Its action verification still means enqueue only.
+- A distinct recovery endpoint checks the finished run, source digest, bound contract, manifest, row count, persisted quality results and publication status. Only a `VERIFIED` outcome resolves the incident. Verified prior outcomes are retrieved only for matching error codes within the same tenant and never assert a confirmed cause.
+- The console provides a row deficit run button, replay result, recovery proposal and separate verification button. The API supports the same flow without manually entering a proposal ID.
+- Full Python suite: 30 passed, one upstream Starlette/AnyIO deprecation warning. Focused M8 API tests: 3 passed, including approval handoff, pending state, independent verification, incident reopening, memory retrieval, missing baseline and invalid recovery manifest. Ruff passed and the documentation validator checked 82 links. The web Docker production build and TypeScript check passed. An isolated PostgreSQL 17 container migrated to `0009_shadow_recovery (head)` and was removed.
+- No Azure/AWS credentials or live provider calls were used. Provider mocks and opted-in sandbox tests belong to a later integration milestone. A general new-pipeline builder is outside M8. See [M8 behavior and demo](44_M8_SHADOW_RECOVERY.md).
 
 ## Reconnaissance
 
@@ -147,7 +156,7 @@
 - No client-supplied execution path, role, tenant ID, code or SQL. Tenant membership and role come from persisted server records. Worker checks tenant and pipeline kind. Runs, attempts, quality and audit are durable DB records. Redis is only a wakeup hint.
 - Basic credentials are suitable only for loopback development. There is no TLS, production identity, rate limit, request byte limit, DB RLS, dedicated least-privilege DB roles or independent secret scan yet. Do not expose this stack to other hosts.
 - Database/filesystem publication is not atomic; deterministic manifests permit recovery of a crash after file write, but no artifact garbage collection is implemented. Output may remain on disk when a run fails after writing. Worker lease is five minutes with a maximum of two claims; a long transform may be reclaimed, and the fixed tiny fixture is the current bound.
-- M1–M6 local PostgreSQL/Compose exit gates passed. M4 PR #4 also passed GitHub's application test, Compose smoke and documentation workflows. The stack remains development-only. Restore testing, metrics, production identity and operation outside loopback remain unverified or out of scope. M2 freshness injection is manual, and simulated 503 faults do not contact an HTTP source. M3 notifications are local DB records and the pause action is only simulated. `pipeline.retry_demo` verification proves durable enqueue, not downstream run success. M4 gates only Takshyra's DB visibility and manifest API; it does not atomically publish to an external consumer. M5 supports a bounded OpenLineage subset and reports potential, not confirmed, downstream impact. M6 displays server decisions but does not add production authentication or effects. Full incident resolution and customer-system recovery are not implemented. Next planned slice: M7 diagnosis and deterministic fallback on its own branch.
+- M1–M6 local PostgreSQL/Compose exit gates passed. M4 PR #4 also passed GitHub's application test, Compose smoke and documentation workflows. The stack remains development-only. Restore testing, metrics, production identity and operation outside loopback remain unverified or out of scope. M2 freshness injection is manual, and simulated 503 faults do not contact an HTTP source. M3 notifications are local DB records and the pause action is only simulated. `pipeline.retry_demo` verification proves durable enqueue, not downstream run success. M4 gates only Takshyra's DB visibility and manifest API; it does not atomically publish to an external consumer. M5 supports a bounded OpenLineage subset and reports potential, not confirmed, downstream impact. M8 resolves only the verified local F04 row deficit scenario. Customer-system recovery and live provider integrations are not implemented.
 
 ## Naming and repository handoff
 

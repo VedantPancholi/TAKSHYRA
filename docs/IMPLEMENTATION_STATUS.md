@@ -80,6 +80,14 @@
 - M7 branch checks: 22 Python tests passed; the additional unknown-evidence case passed in a focused rerun. Ruff, the documentation validator (76 internal links), and the web production build/typecheck passed. The existing Starlette/AnyIO deprecation warning remains.
 - Optional local AI, incident memory and independently verified causes remain for later M7 work. See [M7 diagnosis](43_M7_DIAGNOSIS.md).
 
+### M7 optional local model follow-up (2026-11-14)
+
+- Added explicitly opted-in local Ollama diagnosis using the documented JSON-schema generate API. The default remains deterministic rules. The API sends only bounded server-owned evidence cards, validates every cited evidence ID, restricts categories and next checks, and rejects `CONFIRMED` status or action fields in model output. An eight-second local timeout, response cap, fixed local-only host allowlist and disabled redirects bound the integration.
+- Invalid or unavailable model results return the rule-based diagnosis. The response exposes provider status; failed attempts are recorded as safe audit events. Valid model records are reused for unchanged evidence and model identity. The console shows provider status and makes the empty verified-memory state explicit.
+- No independently verified incident recovery exists yet. `similar_cases` remains empty and `memory_status` reports `NO_VERIFIED_OUTCOMES`; provisional diagnoses and M3 action-effect checks are not used as memory. M8 must supply independent recovery evidence before retrieval is enabled.
+- The host has no Ollama command or listener on port 11434, so the live model path is not verified on this machine. Tests use a controlled local transport stub and cover unavailable, invalid and valid responses.
+- Local verification: 27 Python tests passed (one upstream Starlette/AnyIO deprecation warning); five focused model tests passed after the final audit/timeout edits. Ruff, documentation validation (76 internal links), API Docker build and web typecheck/production build passed. The running demo was kept on merged `main`, not this follow-up branch.
+
 ## Implemented and locally verified
 
 - Files added: `pyproject.toml`, `uv.lock`, `takshyra/{api,auth,config,db,models,runner,seed,worker}.py`, `alembic.ini`, `migrations/`, `tests/test_foundation.py`, `Dockerfile`, `compose.yaml`, `scripts/smoke.py`, `.github/workflows/m1.yml`, and `docs/37_M1_LOCAL_CORE.md`. Updated `.env.example`, `README.md`, `Makefile`, API/local docs and changelog.

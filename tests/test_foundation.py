@@ -14,7 +14,7 @@ from takshyra.api import app
 from takshyra.auth import hash_password
 from takshyra.config import Settings
 from takshyra.incidents import record_observation
-from takshyra.models import ActionEffect, ActionProposal, Attempt, IncidentEvent, Membership, Pipeline, QualityResult, Run, User, now
+from takshyra.models import ActionEffect, ActionProposal, Attempt, AuditEvent, IncidentEvent, Membership, Pipeline, QualityResult, Run, User, now
 from takshyra.runner import read_manifest, transform
 from takshyra.seed import seed
 from takshyra.worker import claim, process_one
@@ -98,6 +98,67 @@ def test_evidence_linked_diagnosis_and_tenant_boundary(local):
     assert result.status_code == 201
     assert result.json()["status"] == "UNKNOWN"
     assert result.json()["hypotheses"] == []
+
+
+def test_optional_local_model_falls_back_then_records_valid_hypothesis(local, monkeypatch):
+    _, engine = local
+    client = TestClient(app)
+    headers, credentials = auth()
+    pid = pipeline_id(client)
+    incident = client.post(
+        f"/api/v1/demo/pipelines/{pid}/freshness-miss", headers=headers, auth=credentials, json={},
+    ).json()
+    route = f"/api/v1/incidents/{incident['id']}/diagnoses"
+    monkeypatch.setenv("TAKSHYRA_DIAGNOSIS_PROVIDER", "ollama")
+    monkeypatch.setenv("TAKSHYRA_OLLAMA_MODEL", "test-local-model")
+
+    def offline(*_args):
+        raise TimeoutError("model offline")
+
+    monkeypatch.setattr("takshyra.diagnosis_api.call_ollama", offline)
+    fallback = client.post(route, headers=headers, auth=credentials)
+    assert fallback.status_code == 201
+    assert fallback.json()["method"] == "RULES_V1"
+    assert fallback.json()["provider_status"] == "UNAVAILABLE_OR_INVALID"
+    assert fallback.json()["similar_cases"] == []
+    assert fallback.json()["memory_status"] == "NO_VERIFIED_OUTCOMES"
+    invalid_response = json.dumps({"hypotheses": [{
+        "summary": "A source issue may have affected freshness.",
+        "category": "FRESHNESS_MISS", "confidence_label": "LOW",
+        "supporting_evidence_refs": ["incident:00000000-0000-0000-0000-000000000000"],
+        "contradicting_evidence_refs": [], "unknowns": ["Cause is unverified."],
+        "next_checks": ["CHECK_PIPELINE_SCHEDULE"],
+    }]})
+    monkeypatch.setattr("takshyra.diagnosis_api.call_ollama", lambda *_args: invalid_response)
+    invalid = client.post(route, headers=headers, auth=credentials)
+    assert invalid.status_code == 201
+    assert invalid.json()["id"] == fallback.json()["id"]
+    assert invalid.json()["provider_status"] == "UNAVAILABLE_OR_INVALID"
+    with Session(engine) as db_session:
+        attempts = db_session.scalars(select(AuditEvent).where(
+            AuditEvent.action == "diagnosis.model_fallback", AuditEvent.target_id == incident["id"],
+        )).all()
+        assert len(attempts) == 2
+
+    model_response = json.dumps({"hypotheses": [{
+        "summary": "The expected freshness window may have been missed.",
+        "category": "FRESHNESS_MISS", "confidence_label": "LOW",
+        "supporting_evidence_refs": [f"incident:{incident['id']}"],
+        "contradicting_evidence_refs": [], "unknowns": ["Cause is unverified."],
+        "next_checks": ["CHECK_PIPELINE_SCHEDULE"],
+    }]})
+    monkeypatch.setattr("takshyra.diagnosis_api.call_ollama", lambda *_args: model_response)
+    modeled = client.post(route, headers=headers, auth=credentials)
+    assert modeled.status_code == 201
+    assert modeled.json()["method"] == "OLLAMA_V1"
+    assert modeled.json()["provider_status"] == "USED"
+    assert modeled.json()["model_id"] == "test-local-model"
+    assert modeled.json()["hypotheses"][0]["status"] == "HYPOTHESIS"
+    assert modeled.json()["id"] != fallback.json()["id"]
+    monkeypatch.setattr("takshyra.diagnosis_api.call_ollama", offline)
+    assert client.post(route, headers=headers, auth=credentials).json()["id"] == modeled.json()["id"]
+    b_headers, b_credentials = auth("demo-b-executor", "demo-b")
+    assert client.get(route, headers=b_headers, auth=b_credentials).status_code == 404
 
 
 def test_migration_seed_auth_and_worker(local):

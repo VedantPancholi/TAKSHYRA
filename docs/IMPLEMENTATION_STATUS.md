@@ -1,9 +1,11 @@
 # Implementation status — verified engineering record
 
 **Updated:** 2026-11-15
-**Stage:** M0–M7 local milestones are on main. M8 local shadow replay and recovery verification are implemented on `feat/m8-shadow-verification` and awaiting merge. Azure and AWS adapters are not implemented.
+**Stage:** M0–M8 local milestones are merged into `main` (M8 PR #10). Azure and AWS adapters are not implemented.
 
 ## M8 shadow recovery branch (2026-11-15)
+
+Post-merge on `main` (commit `9b180a8`): `docker compose up --build -d --wait` reported all five services healthy. The existing M6 web smoke passed, followed by a complete M8 API and web-proxy smoke: F04 row deficit, supported replay, separate approver, new worker run, four restored rows, published quality pass and resolved incident. `scripts/smoke_m8.py` now makes this check repeatable in Compose CI. The unrelated local `.gitignore` edit was preserved.
 
 - A bounded `F04` shadow replay copies the fixed source into temporary scratch storage, evaluates the bound contract without the row drop, compares row counts and publication checks, and records `SUPPORTED`, `PARTIAL` or `IMPOSSIBLE`. Scratch files are removed after the replay. The replay is not a separate process or security sandbox.
 - A new `pipeline.reprocess_demo` action requires a supported report, source and contract rechecks, and exact approval by a different role. Execution queues a new local run. Its action verification still means enqueue only.

@@ -11,6 +11,8 @@ M8 supports one bounded recovery scenario: the seeded orders pipeline produces a
 
 The same flow is available through `POST /api/v1/incidents/{id}/shadow-replays`, `POST /api/v1/action-proposals` with `pipeline.reprocess_demo`, existing approval and execute routes, and `POST /api/v1/action-proposals/{id}/verify-recovery`. Corresponding GET routes list replays and read the recovery outcome. The console does not require a manually entered proposal ID.
 
+For a repeatable check of the running Compose stack, run `docker compose exec -T api python scripts/smoke_m8.py`. It creates a fresh F04 run and verifies the full replay, approval and recovery flow through the web proxy.
+
 ## Security and limits
 
 The replay is tenant scoped and bounded to the local fixture and bound contract. It uses temporary storage in the API container's output volume; it is a scratch replay, not a separate security sandbox. Reprocessing requires an executor and a different approver, and policy rechecks the source and report before execution. The report supports an observed repair path, not a confirmed root cause. Verified outcomes can appear as prior cases for later incidents with the same error code in the same tenant; those cases do not assert that the later incident has the same cause.

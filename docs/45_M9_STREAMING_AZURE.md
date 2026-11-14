@@ -22,4 +22,18 @@ The endpoint and API version follow [Microsoft's ADF pipeline-run query referenc
 
 ## Remaining M9 work
 
-This is the first slice of M9. A real local broker/consumer with checkpoint, retention and replay tests, plus Azure Event Hubs and Monitor adapters, remains. ADF runs are observed through a separate probe and are not yet persisted as core incidents. No Azure or AWS pipeline is modified, and there is no new-pipeline builder.
+At the first-slice merge, a real local broker/consumer with checkpoint, retention and replay tests, plus Azure Event Hubs and Monitor adapters, remained. ADF runs were observed through a separate probe and were not yet persisted as core incidents. No Azure or AWS pipeline is modified, and there is no new-pipeline builder.
+
+## Follow-up: ADF run ingestion branch
+
+`feat/m9-adf-ingestion` adds a local binding from one tenant, ADF factory and external pipeline name to a Takshyra pipeline. `scripts/adf_ingest.py` performs an opted-in, read-only ADF query and stores only the observer's normalized run ID, pipeline name, status and timestamps. The script requires `ENABLE_LIVE_AZURE_TESTS=true`, `azure-identity`, a configured `DATABASE_URL`, the four existing ADF scope variables, `TAKSHYRA_ADF_LOCAL_PIPELINE` and `AZURE_ADF_PIPELINE_NAME`. The process must have network access to both Azure management and the Takshyra database; the standard local image does not install the optional Azure Identity package. No live Azure ingestion has been tested.
+
+The importer rejects truncated query results and binds each local pipeline to one exact ADF target. Repeated polls update the same run observation. A first observed `Failed` or `Cancelled` state records an incident and evidence reference; later polls do not duplicate it. A terminal status changing to another terminal state is rejected for review. It never marks a local recovery as verified or changes an Azure pipeline. `GET /api/v1/adf-observations` lists the latest 50 observations within the signed-in tenant. The incident center shows any failure incident through its existing API.
+
+The mocked database and web-proxy check runs after Compose is healthy:
+
+```powershell
+docker compose exec -T api python scripts/smoke_m9_adf.py
+```
+
+This smoke uses `simulated` provenance and never contacts Azure. The broker and other Azure adapters described above still remain.

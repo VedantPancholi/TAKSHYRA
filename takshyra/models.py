@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import ForeignKey, ForeignKeyConstraint, Index, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-from sqlalchemy.types import DateTime, Integer, String, Text
+from sqlalchemy.types import Boolean, DateTime, Integer, String, Text
 
 
 def now() -> datetime:
@@ -241,6 +241,41 @@ class StreamObservation(Base):
     error_code: Mapped[str | None] = mapped_column(String(64))
     metrics_json: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class AdfPipelineBinding(Base):
+    __tablename__ = "adf_pipeline_bindings"
+    __table_args__ = (
+        ForeignKeyConstraint(["tenant_id", "pipeline_id"], ["pipelines.tenant_id", "pipelines.id"]),
+        UniqueConstraint("tenant_id", "pipeline_id"),
+        UniqueConstraint("tenant_id", "factory", "external_name"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), nullable=False)
+    pipeline_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    factory: Mapped[str] = mapped_column(String(192), nullable=False)
+    external_name: Mapped[str] = mapped_column(String(128), nullable=False)
+
+
+class AdfRunObservation(Base):
+    __tablename__ = "adf_run_observations"
+    __table_args__ = (
+        ForeignKeyConstraint(["tenant_id", "pipeline_id"], ["pipelines.tenant_id", "pipelines.id"]),
+        UniqueConstraint("tenant_id", "factory", "external_run_id"),
+        Index("ix_adf_run_observations_tenant_seen", "tenant_id", "observed_at"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), nullable=False)
+    pipeline_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    factory: Mapped[str] = mapped_column(String(192), nullable=False)
+    external_run_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    external_name: Mapped[str] = mapped_column(String(128), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    provenance: Mapped[str] = mapped_column(String(16), nullable=False)
+    run_start: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    run_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    failure_reported: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
 class IncidentEvent(Base):

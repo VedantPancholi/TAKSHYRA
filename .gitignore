@@ -7,6 +7,8 @@
 secrets/
 credentials/
 .private/
+# Private AI working prompts; keep approved product docs under docs/
+prompts/
 *.tfstate*
 *.tfplan
 .terraform/

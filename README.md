@@ -3,7 +3,7 @@
 **Takshyra Data Reliability Platform** — an evidence-first, policy-governed Data Reliability Control Plane.
 
 > **Tagline:** Intelligence Behind Every Decision.
-> **Status:** M1–M8 are merged. The M9 branch adds a synthetic stream lab and a mocked, read-only ADF observer. See [implementation status](docs/IMPLEMENTATION_STATUS.md). No live cloud connection or autonomous agent is implemented.
+> **Status:** M1–M8 and the first M9 slice are merged. The current M9 branch adds tenant-scoped ADF run ingestion and incident evidence. See [implementation status](docs/IMPLEMENTATION_STATUS.md). No live cloud connection or autonomous agent is verified.
 > **Mission:** Help engineering teams determine what went wrong with data, which assets are affected, what actions are safe, and whether recovery actually restored correctness.
 
 ## The promise
@@ -55,7 +55,7 @@ M7 records deterministic, evidence-linked hypotheses in the console. A local Oll
 
 M8 adds local shadow replay for the row deficit demo, approved reprocessing, independent recovery verification, and tenant scoped retrieval of verified prior outcomes. See [M8 shadow recovery](docs/44_M8_SHADOW_RECOVERY.md).
 
-M9 begins with six deterministic telemetry scenarios in the console and a bounded, read-only Azure Data Factory run observer tested with mocks. See [M9 streaming and Azure](docs/45_M9_STREAMING_AZURE.md).
+M9 includes six deterministic telemetry scenarios, a bounded read-only Azure Data Factory run observer, and a follow-up branch that persists normalized ADF observations and incident evidence. See [M9 streaming and Azure](docs/45_M9_STREAMING_AZURE.md).
 
 ## Demo in one sentence
 Inject silent data loss into an orders pipeline or a schema break into a telemetry decoder; see an incident, evidence and impact, safe policy evaluation, optional shadow test, approval where needed, and independently verified recovery.

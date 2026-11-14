@@ -1,14 +1,21 @@
 # Implementation status — verified engineering record
 
 **Updated:** 2026-11-15
-**Stage:** M0–M8 local milestones are merged into `main` (M8 PR #10, follow-up smoke PR #11). M9 first slice is on `feat/m9-streaming-azure`; no live Azure or AWS integration is verified.
+**Stage:** M0–M8 and the M9 first slice (PR #13) are merged into `main`. A follow-up ADF ingestion slice is on `feat/m9-adf-ingestion`; no live Azure or AWS integration is verified.
+
+## M9 ADF ingestion follow-up (2026-11-15)
+
+- Added explicit tenant/factory/external-pipeline bindings to local pipelines, normalized run storage, and a tenant-scoped read API. Failed or cancelled runs create evidence-linked incidents once per external run; repeat polls update the existing observation. Raw ADF parameters, messages and activity outputs are never stored.
+- The optional live ingestion script requires explicit sandbox opt-in, an Azure credential, a database connection and exact target names. No live Azure call has been made. Mocked ingestion uses `simulated` provenance; real observations use `real observed`.
+- The ingestion refuses truncated observer results, cross-tenant data, conflicting bindings and terminal-status reversals. It does not trigger, cancel, edit or repair ADF pipelines. A broker-backed stream consumer and additional Azure adapters remain.
+- Focused ingestion tests: 3 passed. Full migrated Python suite: 42 passed, one upstream Starlette/AnyIO deprecation warning. Ruff and the documentation validator passed (87 internal links). Docker Compose applied migration `0011_adf_run_observations` and the mocked ADF PostgreSQL/web-proxy smoke passed. The web production build and TypeScript check passed. Live Azure remains untested.
 
 ## M9 first slice (2026-11-15)
 
 - Added a seeded synthetic telemetry pipeline, six deterministic in-memory stream scenarios, tenant-scoped observation records and incident evidence for failed checks. This is a simulator, not a Kafka/Event Hubs consumer or checkpointed stream. The web console has a small stream lab.
 - Added a read-only ADF `queryPipelineRuns` observer with exact resource allowlist, bounded window/pages/results, response-field filtering and mocked tests. An optional script requires explicit live opt-in and `DefaultAzureCredential`; no live Azure call was made.
 - Focused M9 tests: 9 passed. Full migrated SQLite suite: 39 passed, one upstream Starlette/AnyIO deprecation warning. Ruff passed for source, tests, migrations and scripts. The documentation validator checked 87 internal links. The web Docker production build and TypeScript check passed. `docker compose up --build -d --wait` applied migration `0010_stream_observations` and reported five healthy services. The M9 web-proxy/PostgreSQL smoke passed for a stream mismatch incident, downstream potential impact and safe duplicate delivery.
-- Remaining M9 scope: broker-backed stream consumption/reconciliation and additional Azure adapters. ADF observations are not yet ingested into the incident store. See [M9 first-slice behavior](45_M9_STREAMING_AZURE.md).
+- Remaining M9 scope at the first-slice merge: broker-backed stream consumption/reconciliation, ADF ingestion and additional Azure adapters. The follow-up branch above implements ADF ingestion. See [M9 behavior](45_M9_STREAMING_AZURE.md).
 - A prioritized post-M9 console redesign is proposed in [UX design](19_UX_DESIGN.md); it is a design recommendation, not an implemented interface.
 
 ## M8 shadow recovery branch (2026-11-15)

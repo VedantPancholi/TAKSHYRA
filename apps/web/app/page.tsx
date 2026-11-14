@@ -58,6 +58,20 @@ type Impact = {
   affected_assets?: { id: string; name?: string; impact_type?: string }[];
   [key: string]: unknown;
 };
+type Diagnosis = {
+  id: string;
+  status: string;
+  method: string;
+  created_at: string;
+  hypotheses: {
+    summary: string;
+    category: string;
+    confidence_label: string;
+    supporting_evidence_refs: string[];
+    unknowns: string[];
+    next_checks: string[];
+  }[];
+};
 
 async function api<T>(
   session: Session,
@@ -109,6 +123,7 @@ export default function OperationsPage() {
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [selected, setSelected] = useState<Incident | null>(null);
   const [impact, setImpact] = useState<Impact | null>(null);
+  const [diagnosis, setDiagnosis] = useState<Diagnosis | null>(null);
   const [proposal, setProposal] = useState<Proposal | null>(null);
   const [recentProposals, setRecentProposals] = useState<ProposalSummary[]>([]);
   const [note, setNote] = useState("Checked incident evidence");
@@ -168,6 +183,7 @@ export default function OperationsPage() {
       if (workspaceTenant && workspaceTenant !== active.tenant) {
         setSelected(null);
         setImpact(null);
+        setDiagnosis(null);
         setProposal(null);
         setRecentProposals([]);
       }
@@ -208,6 +224,7 @@ export default function OperationsPage() {
     setPipelines([]);
     setSelected(null);
     setImpact(null);
+    setDiagnosis(null);
     setRecentProposals([]);
     setNotice(
       "Signed out. Sign in with another role to continue the proposal handoff.",
@@ -216,12 +233,14 @@ export default function OperationsPage() {
 
   function selectIncident(active: Session, incident: Incident) {
     void perform(async () => {
-      const [detail, radius] = await Promise.all([
+      const [detail, radius, diagnoses] = await Promise.all([
         api<Incident>(active, "GET", `incidents/${incident.id}`),
         api<Impact>(active, "GET", `incidents/${incident.id}/impact`),
+        api<{ items: Diagnosis[] }>(active, "GET", `incidents/${incident.id}/diagnoses`),
       ]);
       setSelected(detail);
       setImpact(radius);
+      setDiagnosis(diagnoses.items[0] ?? null);
     });
   }
 
@@ -236,6 +255,7 @@ export default function OperationsPage() {
       );
       await loadIncidents(active);
       setSelected(created);
+      setDiagnosis(null);
       setImpact(
         await api<Impact>(active, "GET", `incidents/${created.id}/impact`),
       );
@@ -255,6 +275,18 @@ export default function OperationsPage() {
       setSelected(updated);
       await loadIncidents(active);
       setNotice("Investigation started.");
+    });
+  }
+
+  function diagnose(active: Session) {
+    if (!selected) return;
+    void perform(async () => {
+      const result = await api<Diagnosis>(
+        active, "POST", `incidents/${selected.id}/diagnoses`, {},
+      );
+      setDiagnosis(result);
+      setSelected(await api<Incident>(active, "GET", `incidents/${selected.id}`));
+      setNotice("Evidence-linked diagnosis recorded. The cause remains a hypothesis.");
     });
   }
 
@@ -595,6 +627,27 @@ export default function OperationsPage() {
                       <p className="muted">
                         No affected assets reported for this incident.
                       </p>
+                    )}
+                  </div>
+                  <div className="detail-block">
+                    <h4>Diagnosis</h4>
+                    {diagnosis ? (
+                      <>
+                        <p><Pill value={diagnosis.status} /> {diagnosis.method} · {stamp(diagnosis.created_at)}</p>
+                        {diagnosis.hypotheses.length ? diagnosis.hypotheses.map((item) => (
+                          <div key={item.category}>
+                            <p><strong>{item.summary}</strong> ({item.confidence_label.toLowerCase()} confidence)</p>
+                            <p className="muted">Evidence: {item.supporting_evidence_refs.join(", ")}</p>
+                            <p className="muted">Unknown: {item.unknowns.join(" ")}</p>
+                            <p className="muted">Next check: {item.next_checks.join(" ")}</p>
+                          </div>
+                        )) : <p className="muted">The current evidence supports no specific cause.</p>}
+                      </>
+                    ) : <p className="muted">No diagnosis has been recorded for this incident.</p>}
+                    {canExecute && (
+                      <button className="secondary" onClick={() => diagnose(session)} disabled={busy}>
+                        {diagnosis ? "Refresh diagnosis" : "Generate diagnosis"}
+                      </button>
                     )}
                   </div>
                   <div className="detail-block">

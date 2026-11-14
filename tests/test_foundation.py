@@ -13,6 +13,7 @@ from takshyra import db
 from takshyra.api import app
 from takshyra.auth import hash_password
 from takshyra.config import Settings
+from takshyra.incidents import record_observation
 from takshyra.models import ActionEffect, ActionProposal, Attempt, IncidentEvent, Membership, Pipeline, QualityResult, Run, User, now
 from takshyra.runner import read_manifest, transform
 from takshyra.seed import seed
@@ -52,6 +53,51 @@ def pipeline_id(client, user="demo-a-executor", tenant="demo-a"):
     response = client.get("/api/v1/pipelines", headers=headers, auth=credentials)
     assert response.status_code == 200
     return response.json()["items"][0]["id"]
+
+
+def test_evidence_linked_diagnosis_and_tenant_boundary(local):
+    settings, engine = local
+    client = TestClient(app)
+    headers, credentials = auth()
+    pid = pipeline_id(client)
+    queued = client.post(
+        f"/api/v1/pipelines/{pid}/runs", headers=headers, auth=credentials,
+        json={"demo_fault": "F04"},
+    )
+    assert queued.status_code == 202
+    assert process_one(settings, "diagnosis-worker")
+    incidents = client.get("/api/v1/incidents", headers=headers, auth=credentials).json()["items"]
+    incident = next(item for item in incidents if item["run_id"] == queued.json()["id"])
+    route = f"/api/v1/incidents/{incident['id']}/diagnoses"
+    viewer_headers, viewer_credentials = auth("demo-a-viewer")
+    assert client.post(route, headers=viewer_headers, auth=viewer_credentials).status_code == 403
+    assert client.get(route, headers=viewer_headers, auth=viewer_credentials).json() == {"items": []}
+    created = client.post(route, headers=headers, auth=credentials)
+    assert created.status_code == 201
+    diagnosis = created.json()
+    assert diagnosis["status"] == "HYPOTHESIS"
+    assert diagnosis["method"] == "RULES_V1"
+    assert diagnosis["hypotheses"][0]["category"] == "ROW_DEFICIT"
+    assert all(ref.startswith("check:") for ref in diagnosis["hypotheses"][0]["supporting_evidence_refs"])
+    assert client.post(route, headers=headers, auth=credentials).json()["id"] == diagnosis["id"]
+    assert len(client.get(route, headers=viewer_headers, auth=viewer_credentials).json()["items"]) == 1
+    assert client.get(f"/api/v1/incidents/{incident['id']}", headers=headers, auth=credentials).json()["diagnosis_status"] == "HYPOTHESIS"
+    b_headers, b_credentials = auth("demo-b-executor", "demo-b")
+    assert client.get(route, headers=b_headers, auth=b_credentials).status_code == 404
+    assert client.post(route, headers=b_headers, auth=b_credentials).status_code == 404
+    with Session(engine) as session:
+        unknown = record_observation(
+            session, tenant_id=session.get(Run, queued.json()["id"]).tenant_id,
+            pipeline_id=pid, category="EXECUTION_FAILURE", severity="MEDIUM",
+            error_code="UNCLASSIFIED_SIGNAL", source_kind="PIPELINE", source_id=pid,
+            provenance="simulated",
+        )
+        session.commit()
+        unknown_id = unknown.id
+    result = client.post(f"/api/v1/incidents/{unknown_id}/diagnoses", headers=headers, auth=credentials)
+    assert result.status_code == 201
+    assert result.json()["status"] == "UNKNOWN"
+    assert result.json()["hypotheses"] == []
 
 
 def test_migration_seed_auth_and_worker(local):

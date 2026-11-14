@@ -51,6 +51,8 @@ M5 adds a tenant-scoped asset graph, explicit lineage event mappings and bounded
 
 M6 adds a local web workbench for the incident-to-action journey, with viewer, executor and approver roles. See [M6 operations UI](docs/42_M6_OPERATIONS_UI.md).
 
+M7 work is underway on `feat/m7-diagnosis`. Its first slice records deterministic, evidence-linked hypotheses and shows them in the console; optional local AI and incident memory remain planned. See [M7 diagnosis](docs/43_M7_DIAGNOSIS.md).
+
 ## Demo in one sentence
 Inject silent data loss into an orders pipeline or a schema break into a telemetry decoder; see an incident, evidence and impact, safe policy evaluation, optional shadow test, approval where needed, and independently verified recovery.
 

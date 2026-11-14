@@ -140,8 +140,8 @@ def create_diagnosis(incident_id: str, principal: Identity = Depends(executor), 
             db.add(AuditEvent(
                 tenant_id=principal.tenant_id, actor_id=principal.user_id,
                 action="diagnosis.model_fallback", target_id=incident_id,
-                outcome=fallback_status,
-                safe_detail=json.dumps({"model_id": config.model}, sort_keys=True),
+                outcome="FALLBACK",
+                safe_detail=json.dumps({"model_id": config.model, "provider_status": fallback_status}, sort_keys=True),
             ))
         else:
             method = "OLLAMA_V1"

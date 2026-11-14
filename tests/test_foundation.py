@@ -139,6 +139,8 @@ def test_optional_local_model_falls_back_then_records_valid_hypothesis(local, mo
             AuditEvent.action == "diagnosis.model_fallback", AuditEvent.target_id == incident["id"],
         )).all()
         assert len(attempts) == 2
+        assert all(attempt.outcome == "FALLBACK" for attempt in attempts)
+        assert all(json.loads(attempt.safe_detail)["provider_status"] == "UNAVAILABLE_OR_INVALID" for attempt in attempts)
 
     model_response = json.dumps({"hypotheses": [{
         "summary": "The expected freshness window may have been missed.",

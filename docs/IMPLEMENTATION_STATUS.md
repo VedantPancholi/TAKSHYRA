@@ -1,7 +1,7 @@
 # Implementation status — verified engineering record
 
 **Updated:** 2026-11-14
-**Stage:** M0–M6 local milestones implemented for development. Five Compose services and the M6 web journey smoke passed on 2026-11-02.
+**Stage:** M0–M6 local milestones implemented for development. The merged M6 proposal handoff was rebuilt and its Compose smoke passed on 2026-11-14. M7 diagnosis work has started on a separate branch; its optional AI and memory portions are not implemented.
 
 ## Reconnaissance
 
@@ -71,6 +71,14 @@
 - Added `GET /api/v1/action-proposals`, returning up to 50 recent summaries for the authenticated tenant. The workbench lists these actions and prioritizes pending approvals for approvers, so an account switch or page reload no longer requires typing a proposal ID. Selecting a summary fetches the full proposal through the existing tenant-scoped detail route.
 - Clarified in the console and runbook that annotation stores investigation context and `pipeline.pause_demo` records only a marker. The current fixed seeded pipeline is a control-workflow demonstration, not an implementation of real pipeline repair.
 - Local checks: 21 Python tests passed with one upstream Starlette/AnyIO deprecation warning; Ruff and docs validation passed; the production web image built and typechecked. The existing interactive demo stack was kept running and was not replaced for this follow-up. The updated Compose smoke is a CI gate on the branch.
+
+## M7 diagnosis first slice (2026-11-14)
+
+- Added tenant-scoped persisted diagnosis records, evidence snapshot hashes, rule-based hypotheses, and `GET/POST /api/v1/incidents/{id}/diagnoses`. Repeat evaluation of the same evidence returns the same record. Executor and incident-owner checks govern creation; tenant members can read their own tenant's records.
+- The rules cite stored incident, run or quality-check IDs and return `UNKNOWN` when no supported rule applies. They cannot confirm a root cause. The web workbench displays the latest diagnosis and lets an executor generate one.
+- The merged `main` demo was rebuilt locally with all five Compose services healthy. `scripts/smoke_m6.py` passed, including the proposal queue, approval and verification. The M7 branch was built separately so the running demo remains on merged `main`.
+- M7 branch checks: 22 Python tests passed; the additional unknown-evidence case passed in a focused rerun. Ruff, the documentation validator (76 internal links), and the web production build/typecheck passed. The existing Starlette/AnyIO deprecation warning remains.
+- Optional local AI, incident memory and independently verified causes remain for later M7 work. See [M7 diagnosis](43_M7_DIAGNOSIS.md).
 
 ## Implemented and locally verified
 

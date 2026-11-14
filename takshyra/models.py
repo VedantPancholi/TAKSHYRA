@@ -245,6 +245,23 @@ class IncidentEvent(Base):
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
+class Diagnosis(Base):
+    __tablename__ = "diagnoses"
+    __table_args__ = (
+        ForeignKeyConstraint(["tenant_id", "incident_id"], ["incidents.tenant_id", "incidents.id"]),
+        UniqueConstraint("tenant_id", "incident_id", "evidence_hash"),
+        Index("ix_diagnoses_incident_created", "tenant_id", "incident_id", "created_at"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    tenant_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    incident_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    evidence_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    method: Mapped[str] = mapped_column(String(24), nullable=False, default="RULES_V1")
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    hypotheses_json: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
 class ActionProposal(Base):
     __tablename__ = "action_proposals"
     __table_args__ = (

@@ -16,15 +16,17 @@ from takshyra.actions_api import router as actions_router
 from takshyra.contracts_api import active_orders, router as contracts_router
 from takshyra.config import Settings
 from takshyra.db import session
+from takshyra.diagnosis_api import router as diagnosis_router
 from takshyra.incidents import record_observation
 from takshyra.lineage_api import router as lineage_router
-from takshyra.models import Attempt, AuditEvent, ContractVersion, Incident, IncidentEvent, Pipeline, QualityResult, Run, now
+from takshyra.models import Attempt, AuditEvent, ContractVersion, Diagnosis, Incident, IncidentEvent, Pipeline, QualityResult, Run, now
 from takshyra.runner import read_manifest
 
 app = FastAPI(title="Takshyra Data Reliability Platform", version="0.1.0")
 app.include_router(actions_router)
 app.include_router(contracts_router)
 app.include_router(lineage_router)
+app.include_router(diagnosis_router)
 log = logging.getLogger(__name__)
 
 
@@ -175,6 +177,9 @@ def get_run_manifest(run_id: str, principal: Identity = Depends(identity), db: S
 
 
 def incident_view(db: Session, incident: Incident, *, timeline: bool = False) -> dict:
+    latest_diagnosis = db.scalar(select(Diagnosis).where(
+        Diagnosis.tenant_id == incident.tenant_id, Diagnosis.incident_id == incident.id,
+    ).order_by(Diagnosis.created_at.desc(), Diagnosis.id.desc()).limit(1))
     result = {
         "id": incident.id, "pipeline_id": incident.pipeline_id, "run_id": incident.run_id,
         "owner_id": incident.owner_id,
@@ -182,7 +187,7 @@ def incident_view(db: Session, incident: Incident, *, timeline: bool = False) ->
         "status": incident.status, "error_code": incident.error_code,
         "occurrence_count": incident.occurrence_count,
         "first_seen_at": incident.first_seen_at, "last_seen_at": incident.last_seen_at,
-        "diagnosis_status": "UNKNOWN",
+        "diagnosis_status": latest_diagnosis.status if latest_diagnosis else "UNKNOWN",
         "provenance": incident.provenance,
     }
     if timeline:

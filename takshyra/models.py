@@ -257,6 +257,8 @@ class Diagnosis(Base):
     incident_id: Mapped[str] = mapped_column(String(36), nullable=False)
     evidence_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     method: Mapped[str] = mapped_column(String(24), nullable=False, default="RULES_V1")
+    model_id: Mapped[str | None] = mapped_column(String(100))
+    provider_status: Mapped[str | None] = mapped_column(String(24))
     status: Mapped[str] = mapped_column(String(16), nullable=False)
     hypotheses_json: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)

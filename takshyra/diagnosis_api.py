@@ -9,15 +9,18 @@ from sqlalchemy.orm import Session
 
 from takshyra.auth import Identity, executor, identity
 from takshyra.db import session
+from takshyra.local_ai import LocalAIConfig, call_ollama, evidence_cards, validate_output
 from takshyra.models import AuditEvent, Diagnosis, Incident, IncidentEvent, QualityResult, Run, now
 
 router = APIRouter(prefix="/api/v1/incidents/{incident_id}/diagnoses", tags=["diagnoses"])
 
 
-def view(row: Diagnosis) -> dict:
+def view(row: Diagnosis, *, provider_status: str | None = None) -> dict:
     return {
         "id": row.id, "incident_id": row.incident_id, "method": row.method,
         "status": row.status, "evidence_hash": row.evidence_hash,
+        "model_id": row.model_id, "provider_status": provider_status or row.provider_status or "NOT_RECORDED",
+        "memory_status": "NO_VERIFIED_OUTCOMES", "similar_cases": [],
         "hypotheses": json.loads(row.hypotheses_json), "created_at": row.created_at,
     }
 
@@ -96,17 +99,54 @@ def create_diagnosis(incident_id: str, principal: Identity = Depends(executor), 
         raise HTTPException(403, "Incident is assigned to another investigator")
     snapshot, checks = evidence(db, incident)
     digest = hashlib.sha256(json.dumps(snapshot, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    try:
+        config = LocalAIConfig.from_env()
+    except ValueError:
+        config = LocalAIConfig(False)
+        fallback_status = "CONFIG_INVALID"
+    else:
+        fallback_status = "DISABLED"
+    hypotheses = None
+    method = "RULES_V1"
+    model_id = None
+    result_hash = digest
+    if config.enabled:
+        model_hash = hashlib.sha256(f"{digest}|OLLAMA_V1|{config.model}".encode()).hexdigest()
+        model_record = db.scalar(select(Diagnosis).where(
+            Diagnosis.tenant_id == principal.tenant_id, Diagnosis.incident_id == incident_id,
+            Diagnosis.evidence_hash == model_hash,
+        ))
+        if model_record:
+            return view(model_record)
+        cards, refs = evidence_cards(snapshot)
+        try:
+            hypotheses = validate_output(call_ollama(config, cards), refs)
+        except (ValueError, OSError, TimeoutError, json.JSONDecodeError):
+            fallback_status = "UNAVAILABLE_OR_INVALID"
+            db.add(AuditEvent(
+                tenant_id=principal.tenant_id, actor_id=principal.user_id,
+                action="diagnosis.model_fallback", target_id=incident_id,
+                outcome=fallback_status,
+                safe_detail=json.dumps({"model_id": config.model}, sort_keys=True),
+            ))
+        else:
+            method = "OLLAMA_V1"
+            model_id = config.model
+            result_hash = model_hash
+            fallback_status = "USED"
+    if hypotheses is None:
+        hypotheses = rule_hypotheses(snapshot, checks)
     existing = db.scalar(select(Diagnosis).where(
         Diagnosis.tenant_id == principal.tenant_id, Diagnosis.incident_id == incident_id,
-        Diagnosis.evidence_hash == digest,
+        Diagnosis.evidence_hash == result_hash,
     ))
     if existing:
-        return view(existing)
-    hypotheses = rule_hypotheses(snapshot, checks)
+        db.commit()  # Persists a model-fallback audit event, if one was recorded.
+        return view(existing, provider_status=fallback_status if method == "RULES_V1" else None)
     status = "HYPOTHESIS" if hypotheses else "UNKNOWN"
     diagnosis = Diagnosis(
-        tenant_id=principal.tenant_id, incident_id=incident_id, evidence_hash=digest,
-        method="RULES_V1", status=status,
+        tenant_id=principal.tenant_id, incident_id=incident_id, evidence_hash=result_hash,
+        method=method, model_id=model_id, provider_status=fallback_status, status=status,
         hypotheses_json=json.dumps(hypotheses, sort_keys=True, separators=(",", ":")),
     )
     db.add(diagnosis)

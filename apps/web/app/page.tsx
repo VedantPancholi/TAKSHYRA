@@ -62,6 +62,10 @@ type Diagnosis = {
   id: string;
   status: string;
   method: string;
+  model_id: string | null;
+  provider_status: string;
+  memory_status: string;
+  similar_cases: { id: string; summary: string }[];
   created_at: string;
   hypotheses: {
     summary: string;
@@ -634,6 +638,7 @@ export default function OperationsPage() {
                     {diagnosis ? (
                       <>
                         <p><Pill value={diagnosis.status} /> {diagnosis.method} · {stamp(diagnosis.created_at)}</p>
+                        <p className="muted">Provider: {diagnosis.provider_status.replaceAll("_", " ")}{diagnosis.model_id ? ` · ${diagnosis.model_id}` : ""}</p>
                         {diagnosis.hypotheses.length ? diagnosis.hypotheses.map((item) => (
                           <div key={item.category}>
                             <p><strong>{item.summary}</strong> ({item.confidence_label.toLowerCase()} confidence)</p>
@@ -642,6 +647,9 @@ export default function OperationsPage() {
                             <p className="muted">Next check: {item.next_checks.join(" ")}</p>
                           </div>
                         )) : <p className="muted">The current evidence supports no specific cause.</p>}
+                        {diagnosis.memory_status === "NO_VERIFIED_OUTCOMES" && (
+                          <p className="muted">No independently verified prior cases are available yet.</p>
+                        )}
                       </>
                     ) : <p className="muted">No diagnosis has been recorded for this incident.</p>}
                     {canExecute && (

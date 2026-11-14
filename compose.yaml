@@ -29,6 +29,9 @@ services:
       REDIS_URL: redis://redis:6379/0
       OUTPUT_DIR: /app/data/output
       FIXTURE_PATH: /app/seed/synthetic_orders.csv
+      TAKSHYRA_DIAGNOSIS_PROVIDER: ${TAKSHYRA_DIAGNOSIS_PROVIDER:-rules}
+      TAKSHYRA_OLLAMA_MODEL: ${TAKSHYRA_OLLAMA_MODEL:-}
+      TAKSHYRA_OLLAMA_BASE_URL: ${TAKSHYRA_OLLAMA_BASE_URL:-http://host.docker.internal:11434}
     command: ["sh", "-c", "alembic upgrade head && python -m takshyra.seed && uvicorn takshyra.api:app --host 0.0.0.0 --port 8000"]
     ports:
       - "127.0.0.1:8000:8000"

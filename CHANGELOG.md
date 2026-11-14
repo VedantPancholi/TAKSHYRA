@@ -15,6 +15,7 @@
 - Added M6 Next.js operations console with incident evidence, impact, governed proposals, approval and verification handoff; web proxy, role-aware controls and Compose smoke coverage.
 - Added a tenant-scoped recent-proposals list so the M6 approver and executor can resume a handoff without typing a proposal ID, and clarified that current actions do not repair pipelines.
 - Started M7 with persisted, tenant-scoped, evidence-linked rule-based diagnoses and a console view. Optional local AI and incident memory remain planned.
+- Added opt-in local Ollama diagnosis with bounded evidence, strict structured-output validation and rule fallback. Memory reports no verified cases until independent recovery outcomes exist.
 - No cloud resources, agents or paid integrations implemented.
 
 ## Blueprint — 2026-10-09

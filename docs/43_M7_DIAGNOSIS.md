@@ -1,6 +1,6 @@
 # M7 diagnosis, first slice
 
-This branch begins M7 with persisted, evidence-linked, deterministic hypotheses. It does not claim a verified root cause or alter policy and action authority.
+M7 records evidence-linked hypotheses. Rules work without a model. An optional local Ollama provider can suggest structured hypotheses; its output never confirms a cause or changes policy and action authority.
 
 ## Local API and console
 
@@ -9,12 +9,19 @@ This branch begins M7 with persisted, evidence-linked, deterministic hypotheses.
 - A matching evidence snapshot returns the existing diagnosis. A changed incident observation or run/check state creates a new record.
 - The operations console shows the latest diagnosis and a **Generate diagnosis** button for executors.
 
-Rules currently cover row deficits, simulated freshness misses and source read failures. Each result is marked `HYPOTHESIS`, cites stored evidence IDs and lists unknowns and a next check. Unmatched evidence yields `UNKNOWN` with no invented cause. The method is recorded as `RULES_V1`.
+Rules cover row deficits, simulated freshness misses and source read failures. Each result is marked `HYPOTHESIS`, cites stored evidence IDs and lists unknowns and a next check. Unmatched evidence yields `UNKNOWN` with no invented cause. The method is recorded as `RULES_V1`.
+
+## Optional local model
+
+The default `.env` value is `TAKSHYRA_DIAGNOSIS_PROVIDER=rules`. To opt in, run Ollama locally, install a model of your choice, and set `TAKSHYRA_DIAGNOSIS_PROVIDER=ollama` and `TAKSHYRA_OLLAMA_MODEL=<installed-model-name>` in ignored `.env`. The Docker API reaches the local host at `http://host.docker.internal:11434`; a native API process may use `TAKSHYRA_OLLAMA_BASE_URL=http://127.0.0.1:11434`. Only these local hostnames and port 11434 are accepted. Recreate the API container after changing Compose environment values.
+
+The request sends only server-created incident, run and check identifiers and bounded status codes. It excludes raw rows, observed values, notes, credentials and full prompts. It asks Ollama's `/api/generate` for a JSON-schema result with streaming disabled, an eight-second timeout and bounded response size. The server validates the schema, allowed evidence IDs, category, confidence label and next-check enum. Invalid, timed-out or unavailable responses fall back to rules. The diagnosis response reports `method`, `model_id` and `provider_status`; an existing model result is reused for unchanged evidence and model name. Model text stays advisory.
+
+No Ollama process or model is bundled with Compose. Without one, leave the provider on `rules`; the incident, policy and pipeline flows continue normally.
 
 ## M7 work still ahead
 
-- Add a bounded, explicitly opted-in local model provider. Validate its structured output and evidence references; fall back to rules on timeout, invalid output or absence.
-- Add tenant-scoped incident memory only from independently verified outcomes. There are no verified resolution records yet, so memory must remain empty until that evidence exists.
-- Evaluate diagnosis fixtures, including missing evidence and adversarial text. Keep model output advisory and policy decisions deterministic.
+- Add independently verified recovery outcomes in M8. Until then `similar_cases` is empty and `memory_status` is `NO_VERIFIED_OUTCOMES`; provisional diagnoses and action-effect checks are never treated as verified memory.
+- Expand labeled evaluation fixtures when real connector evidence exists. The current tests cover no-model operation, missing evidence IDs, forbidden output fields, unsafe next checks, local-only endpoint configuration and model fallback.
 
 Do not present these hypotheses as confirmed causes. The demo pipeline and its faults remain synthetic.

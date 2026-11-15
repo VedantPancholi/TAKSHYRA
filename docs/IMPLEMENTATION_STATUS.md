@@ -1,7 +1,13 @@
 # Implementation status — verified engineering record
 
 **Updated:** 2026-11-15
-**Stage:** M0–M8 and the first two M9 slices (PRs #13–14) are merged into `main`. ADF fault hardening is on `test/m9-adf-failure-cases`; no live Azure or AWS integration is verified.
+**Stage:** M0–M8 and the first two M9 slices (PRs #13–14) plus ADF fault hardening (PR #15) are merged into `main`. The local broker consumer is on `feat/m9-broker-consumer`; no live Azure or AWS integration is verified.
+
+## M9 local broker consumer (2026-11-15)
+
+- Redis Streams holds bounded synthetic telemetry with AOF persistence. A dedicated worker reads it; the PostgreSQL event ledger, incident evidence and checkpoint commit together. A repeated event key or replayed stream entry does not create another sink row or incident.
+- A schema mismatch goes to a local DLQ ledger outcome; lag and late events produce evidence-linked incidents. Tenant-scoped broker status reports written, DLQ and failure counts. An expired checkpoint stops processing for manual reconciliation instead of skipping missing entries.
+- The demo publisher is executor-only, development-only and emits server-owned fixtures. No customer stream or cloud broker is connected. The existing in-memory stream lab remains available as a separate simulator.
 
 ## M9 ADF failure-case hardening (2026-11-15)
 

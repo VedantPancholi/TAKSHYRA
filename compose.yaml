@@ -14,7 +14,9 @@ services:
       retries: 30
   redis:
     image: redis:7-alpine
-    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
   api:
     build: .
     environment: &app_env
@@ -56,6 +58,13 @@ services:
     depends_on:
       api:
         condition: service_healthy
+  stream-worker:
+    build: .
+    environment: *app_env
+    command: ["python", "-m", "takshyra.broker_stream"]
+    depends_on:
+      api:
+        condition: service_healthy
   web:
     build: ./apps/web
     environment:
@@ -73,3 +82,4 @@ services:
 volumes:
   pgdata:
   output:
+  redisdata:

@@ -105,6 +105,12 @@ type StreamObservation = {
     source_sink_gap: number;
   };
 };
+type BrokerStatus = {
+  mode: string;
+  written: number;
+  dlq: number;
+  failures: number;
+};
 
 async function api<T>(
   session: Session,
@@ -163,6 +169,11 @@ export default function OperationsPage() {
   const [recentProposals, setRecentProposals] = useState<ProposalSummary[]>([]);
   const [streamScenario, setStreamScenario] = useState("SCHEMA_V15");
   const [streamObservation, setStreamObservation] = useState<StreamObservation | null>(null);
+  const [brokerScenario, setBrokerScenario] = useState("SCHEMA_V15");
+  const [brokerStatus, setBrokerStatus] = useState<BrokerStatus | null>(null);
+  const [incidentSearch, setIncidentSearch] = useState("");
+  const [incidentStatus, setIncidentStatus] = useState("ALL");
+  const [incidentSeverity, setIncidentSeverity] = useState("ALL");
   const [note, setNote] = useState("Checked incident evidence");
   const [actionType, setActionType] = useState<
     "incident.annotate" | "pipeline.pause_demo" | "pipeline.reprocess_demo"
@@ -201,6 +212,10 @@ export default function OperationsPage() {
     setRecentProposals(list.items);
   }
 
+  async function loadBroker(active: Session) {
+    setBrokerStatus(await api<BrokerStatus>(active, "GET", "stream-observations/broker"));
+  }
+
   function signIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     void perform(async () => {
@@ -226,11 +241,15 @@ export default function OperationsPage() {
         setProposal(null);
         setRecentProposals([]);
         setStreamObservation(null);
+        setBrokerStatus(null);
+        setIncidentSearch("");
+        setIncidentStatus("ALL");
+        setIncidentSeverity("ALL");
       }
       setWorkspaceTenant(active.tenant);
       setSession(active);
       setPassword("");
-      const [list, pipeList, proposals, streamObservations] = await Promise.all([
+      const [list, pipeList, proposals, streamObservations, broker] = await Promise.all([
         api<{ items: Incident[] }>(active, "GET", "incidents"),
         api<{ items: { id: string; name: string }[] }>(
           active,
@@ -239,11 +258,13 @@ export default function OperationsPage() {
         ),
         api<{ items: ProposalSummary[] }>(active, "GET", "action-proposals"),
         api<{ items: StreamObservation[] }>(active, "GET", "stream-observations"),
+        api<BrokerStatus>(active, "GET", "stream-observations/broker").catch(() => null),
       ]);
       setIncidents(list.items);
       setPipelines(pipeList.items);
       setRecentProposals(proposals.items);
       setStreamObservation(streamObservations.items[0] ?? null);
+      setBrokerStatus(broker);
       if (proposal && (!workspaceTenant || workspaceTenant === active.tenant)) {
         try {
           setProposal(
@@ -271,6 +292,10 @@ export default function OperationsPage() {
     setRecoveryOutcome(null);
     setRecentProposals([]);
     setStreamObservation(null);
+    setBrokerStatus(null);
+    setIncidentSearch("");
+    setIncidentStatus("ALL");
+    setIncidentSeverity("ALL");
     setNotice(
       "Signed out. Sign in with another role to continue the proposal handoff.",
     );
@@ -357,6 +382,15 @@ export default function OperationsPage() {
       setNotice(result.incident_id
         ? "Simulated stream failure recorded with an incident."
         : "Simulated stream checks passed.");
+    });
+  }
+
+  function runBrokerScenario(active: Session) {
+    void perform(async () => {
+      const result = await api<{ queued: number }>(active, "POST", "stream-observations/broker-demo",
+        { scenario: brokerScenario });
+      await loadBroker(active);
+      setNotice(`${result.queued} events queued in the local broker. Refresh after the worker processes them.`);
     });
   }
 
@@ -460,6 +494,12 @@ export default function OperationsPage() {
             Number(a.status === "AWAITING_APPROVAL"),
         )
     : recentProposals;
+  const filteredIncidents = incidents.filter((item) => {
+    const query = incidentSearch.trim().toLowerCase();
+    const matchesQuery = !query || `${item.error_code} ${item.category} ${item.id}`.toLowerCase().includes(query);
+    return matchesQuery && (incidentStatus === "ALL" || item.status === incidentStatus)
+      && (incidentSeverity === "ALL" || item.severity === incidentSeverity);
+  });
 
   return (
     <main className="shell">
@@ -546,7 +586,13 @@ export default function OperationsPage() {
         </section>
       ) : (
         <>
-          <div className="page-heading">
+          <nav className="workspace-nav" aria-label="Workspace sections">
+            <a href="#overview">Overview</a>
+            <a href="#streaming">Streaming</a>
+            <a href="#incidents">Incidents <span>{incidents.filter((item) => item.status !== "RESOLVED").length}</span></a>
+            <a href="#actions">Actions</a>
+          </nav>
+          <div className="page-heading" id="overview">
             <div>
               <div className="eyebrow">
                 COMMAND CENTER / {session.tenant.toUpperCase()}
@@ -559,7 +605,9 @@ export default function OperationsPage() {
             </div>
             <button
               className="outline"
-              onClick={() => void perform(() => loadIncidents(session))}
+              onClick={() => void perform(async () => {
+                await Promise.all([loadIncidents(session), loadBroker(session).catch(() => setBrokerStatus(null))]);
+              })}
               disabled={busy}
             >
               ↻ &nbsp; Refresh
@@ -594,7 +642,7 @@ export default function OperationsPage() {
               <small>Enforced by the API</small>
             </div>
           </section>
-          <div className="section-top">
+          <div className="section-top" id="streaming">
             <div>
               <div className="eyebrow">STREAM LAB / LOCAL</div>
               <h2>Telemetry checks</h2>
@@ -630,7 +678,36 @@ export default function OperationsPage() {
               </> : <p className="muted">No stream check recorded yet.</p>}
             </div>
           </section>
-          <div className="section-top">
+          <section className="panel broker-lab" aria-label="Local broker stream">
+            <div>
+              <div className="eyebrow">REDIS STREAM / LOCAL</div>
+              <h3>Broker delivery</h3>
+              <p className="muted">Publish fixed test events to Redis. A separate worker records accepted events, dead letters and incidents with a durable checkpoint.</p>
+              {canExecute && <div className="stream-controls">
+                <select aria-label="Broker scenario" value={brokerScenario} onChange={(event) => setBrokerScenario(event.target.value)}>
+                  <option value="SCHEMA_V15">Schema mismatch</option>
+                  <option value="CONSUMER_LAG">Consumer lag</option>
+                  <option value="LATE_EVENT">Late event</option>
+                  <option value="DUPLICATE">Duplicate delivery</option>
+                  <option value="CLEAN">Clean delivery</option>
+                </select>
+                <button className="secondary" disabled={busy} onClick={() => runBrokerScenario(session)}>Publish test events</button>
+              </div>}
+            </div>
+            <div className="broker-summary" aria-live="polite">
+              <div className="stream-stats">
+                <span>Written <strong>{brokerStatus?.written ?? "—"}</strong></span>
+                <span>Dead letter <strong>{brokerStatus?.dlq ?? "—"}</strong></span>
+                <span>Flagged <strong>{brokerStatus?.failures ?? "—"}</strong></span>
+              </div>
+              <button className="outline" disabled={busy} onClick={() => void perform(async () => {
+                await loadBroker(session);
+                await loadIncidents(session);
+              })}>Refresh broker results</button>
+              <small className="muted">{brokerStatus ? "Synthetic events · local Redis · counts for this tenant" : "Broker status unavailable for this workspace"}</small>
+            </div>
+          </section>
+          <div className="section-top" id="incidents">
             <div>
               <div className="eyebrow">01 / DETECT</div>
               <h2>Incident center</h2>
@@ -650,7 +727,23 @@ export default function OperationsPage() {
             <div className="panel incident-list">
               <div className="panel-heading">
                 <strong>Live incident queue</strong>
-                <span>{incidents.length} records</span>
+                <span>{filteredIncidents.length} of {incidents.length} records</span>
+              </div>
+              <div className="incident-filters">
+                <input aria-label="Search incidents" placeholder="Search code, category or ID" value={incidentSearch} onChange={(event) => setIncidentSearch(event.target.value)} />
+                <select aria-label="Filter incident status" value={incidentStatus} onChange={(event) => setIncidentStatus(event.target.value)}>
+                  <option value="ALL">All statuses</option>
+                  <option value="OPEN">Open</option>
+                  <option value="INVESTIGATING">Investigating</option>
+                  <option value="RESOLVED">Resolved</option>
+                </select>
+                <select aria-label="Filter incident severity" value={incidentSeverity} onChange={(event) => setIncidentSeverity(event.target.value)}>
+                  <option value="ALL">All severities</option>
+                  <option value="CRITICAL">Critical</option>
+                  <option value="HIGH">High</option>
+                  <option value="MEDIUM">Medium</option>
+                  <option value="LOW">Low</option>
+                </select>
               </div>
               {incidents.length === 0 ? (
                 <div className="empty">
@@ -659,6 +752,8 @@ export default function OperationsPage() {
                     ? "Create a simulated freshness incident to try the workflow."
                     : "Ask an executor to start the demo scenario."}
                 </div>
+              ) : filteredIncidents.length === 0 ? (
+                <div className="empty">No incidents match these filters. Clear the search or choose another status.</div>
               ) : (
                 <div className="table-wrap">
                   <table>
@@ -671,7 +766,7 @@ export default function OperationsPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {incidents.map((item) => (
+                      {filteredIncidents.map((item) => (
                         <tr
                           key={item.id}
                           className={selected?.id === item.id ? "selected" : ""}
@@ -833,7 +928,7 @@ export default function OperationsPage() {
               )}
             </div>
           </section>
-          <div className="section-top">
+          <div className="section-top" id="actions">
             <div>
               <div className="eyebrow">02 / RESPOND</div>
               <h2>Governed action</h2>

@@ -24,6 +24,10 @@ The endpoint and API version follow [Microsoft's ADF pipeline-run query referenc
 
 At the first-slice merge, a real local broker/consumer with checkpoint, retention and replay tests, plus Azure Event Hubs and Monitor adapters, remained. ADF runs were observed through a separate probe and were not yet persisted as core incidents. No Azure or AWS pipeline is modified, and there is no new-pipeline builder.
 
+The `feat/m9-broker-consumer` branch adds a Redis Streams consumer and PostgreSQL checkpoint/event ledger. `POST /api/v1/stream-observations/broker-demo` publishes only fixed development fixtures; `GET /api/v1/stream-observations/broker` returns tenant-scoped ledger counts. The shared stream checkpoint stays server-side. The stream is capped near 10,000 entries and Redis AOF is stored in a named volume. If retention removes the committed checkpoint, the worker stops rather than silently skipping entries. Replay and duplicate keys are idempotent. Schema mismatches become DLQ ledger rows; late and lagging entries record incidents. This does not connect to Kafka, Event Hubs or customer data, and does not reconcile an external analytical sink.
+
+After Compose is healthy, run `docker compose exec -T api python scripts/smoke_m9_broker.py` to verify publishing through the web proxy and ingestion by the dedicated worker.
+
 ## Follow-up: ADF run ingestion branch
 
 `feat/m9-adf-ingestion` adds a local binding from one tenant, ADF factory and external pipeline name to a Takshyra pipeline. `scripts/adf_ingest.py` performs an opted-in, read-only ADF query and stores only the observer's normalized run ID, pipeline name, status and timestamps. The script requires `ENABLE_LIVE_AZURE_TESTS=true`, `azure-identity`, a configured `DATABASE_URL`, the four existing ADF scope variables, `TAKSHYRA_ADF_LOCAL_PIPELINE` and `AZURE_ADF_PIPELINE_NAME`. The process must have network access to both Azure management and the Takshyra database; the standard local image does not install the optional Azure Identity package. No live Azure ingestion has been tested.

@@ -49,6 +49,7 @@ jobs:
       - run: docker compose exec -T api python scripts/smoke_m9.py
       - run: docker compose exec -T api python scripts/smoke_m9_adf.py
       - run: docker compose exec -T api python scripts/smoke_m9_adf_faults.py
+      - run: docker compose exec -T api python scripts/smoke_m9_broker.py
       - if: always()
         run: docker compose logs --no-color --tail=100
       - if: always()

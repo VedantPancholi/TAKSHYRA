@@ -243,6 +243,31 @@ class StreamObservation(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
+class BrokerCheckpoint(Base):
+    __tablename__ = "broker_checkpoints"
+    stream_key: Mapped[str] = mapped_column(String(128), primary_key=True)
+    last_id: Mapped[str] = mapped_column(String(64), nullable=False, default="0-0")
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class BrokerEvent(Base):
+    __tablename__ = "broker_events"
+    __table_args__ = (
+        ForeignKeyConstraint(["tenant_id", "pipeline_id"], ["pipelines.tenant_id", "pipelines.id"]),
+        UniqueConstraint("tenant_id", "pipeline_id", "event_key"),
+        Index("ix_broker_events_tenant_created", "tenant_id", "created_at"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), nullable=False)
+    pipeline_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    stream_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    event_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    outcome: Mapped[str] = mapped_column(String(16), nullable=False)
+    reason: Mapped[str | None] = mapped_column(String(64))
+    event_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
 class AdfPipelineBinding(Base):
     __tablename__ = "adf_pipeline_bindings"
     __table_args__ = (

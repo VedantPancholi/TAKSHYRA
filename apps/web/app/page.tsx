@@ -161,6 +161,7 @@ export default function OperationsPage() {
   const [tenant, setTenant] = useState("demo-a");
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [selected, setSelected] = useState<Incident | null>(null);
+  const [incidentView, setIncidentView] = useState<"overview" | "evidence" | "recovery">("overview");
   const [impact, setImpact] = useState<Impact | null>(null);
   const [diagnosis, setDiagnosis] = useState<Diagnosis | null>(null);
   const [shadowReplay, setShadowReplay] = useState<ShadowReplay | null>(null);
@@ -234,6 +235,7 @@ export default function OperationsPage() {
       };
       if (workspaceTenant && workspaceTenant !== active.tenant) {
         setSelected(null);
+        setIncidentView("overview");
         setImpact(null);
         setDiagnosis(null);
         setShadowReplay(null);
@@ -286,6 +288,7 @@ export default function OperationsPage() {
     setIncidents([]);
     setPipelines([]);
     setSelected(null);
+    setIncidentView("overview");
     setImpact(null);
     setDiagnosis(null);
     setShadowReplay(null);
@@ -303,6 +306,7 @@ export default function OperationsPage() {
 
   function selectIncident(active: Session, incident: Incident) {
     void perform(async () => {
+      setIncidentView("overview");
       const [detail, radius, diagnoses, replays] = await Promise.all([
         api<Incident>(active, "GET", `incidents/${incident.id}`),
         api<Impact>(active, "GET", `incidents/${incident.id}/impact`),
@@ -392,6 +396,14 @@ export default function OperationsPage() {
       await loadBroker(active);
       setNotice(`${result.queued} events queued in the local broker. Refresh after the worker processes them.`);
     });
+  }
+
+  function showIncidents(status: string) {
+    setIncidentSearch("");
+    setIncidentSeverity("ALL");
+    setIncidentStatus(status);
+    const motion = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
+    document.getElementById("incidents")?.scrollIntoView({ behavior: motion });
   }
 
   function replayIncident(active: Session) {
@@ -602,6 +614,7 @@ export default function OperationsPage() {
                 Investigate evidence and move from signal to a verified local
                 action.
               </p>
+              <span className="work-status" role="status">{busy ? "Updating workspace…" : "Workspace ready"}</span>
             </div>
             <button
               className="outline"
@@ -614,19 +627,19 @@ export default function OperationsPage() {
             </button>
           </div>
           <section className="metric-row" aria-label="Incident summary">
-            <div className="metric">
+            <button type="button" className="metric metric-action" onClick={() => showIncidents("ALL")}>
               <span>INCIDENTS</span>
               <strong>{incidents.length}</strong>
-              <small>Visible in this tenant</small>
-            </div>
-            <div className="metric">
+              <small>View all in this tenant →</small>
+            </button>
+            <button type="button" className="metric metric-action" onClick={() => showIncidents("OPEN")}>
               <span>OPEN</span>
               <strong>
                 {incidents.filter((item) => item.status === "OPEN").length}
               </strong>
-              <small>Awaiting investigation</small>
-            </div>
-            <div className="metric">
+              <small>Awaiting investigation →</small>
+            </button>
+            <button type="button" className="metric metric-action" onClick={() => showIncidents("INVESTIGATING")}>
               <span>INVESTIGATING</span>
               <strong>
                 {
@@ -634,8 +647,8 @@ export default function OperationsPage() {
                     .length
                 }
               </strong>
-              <small>Owned work in progress</small>
-            </div>
+              <small>Owned work in progress →</small>
+            </button>
             <div className="metric accent">
               <span>YOUR ACCESS</span>
               <strong>{session.role.toUpperCase()}</strong>
@@ -744,6 +757,13 @@ export default function OperationsPage() {
                   <option value="MEDIUM">Medium</option>
                   <option value="LOW">Low</option>
                 </select>
+                {(incidentSearch || incidentStatus !== "ALL" || incidentSeverity !== "ALL") && (
+                  <button className="filter-clear" type="button" onClick={() => {
+                    setIncidentSearch("");
+                    setIncidentStatus("ALL");
+                    setIncidentSeverity("ALL");
+                  }}>Clear</button>
+                )}
               </div>
               {incidents.length === 0 ? (
                 <div className="empty">
@@ -838,6 +858,20 @@ export default function OperationsPage() {
                       <strong>{stamp(selected.last_seen_at)}</strong>
                     </div>
                   </div>
+                  <div className="detail-tabs" aria-label="Incident information">
+                    {(["overview", "evidence", "recovery"] as const).map((view) => (
+                      <button
+                        key={view}
+                        type="button"
+                        className={incidentView === view ? "active" : ""}
+                        aria-pressed={incidentView === view}
+                        onClick={() => setIncidentView(view)}
+                      >
+                        {view === "overview" ? "Overview" : view === "evidence" ? "Evidence" : "Recovery"}
+                      </button>
+                    ))}
+                  </div>
+                  {incidentView === "overview" && <>
                   <div className="detail-block">
                     <h4>Potential downstream impact</h4>
                     <p>
@@ -886,6 +920,12 @@ export default function OperationsPage() {
                       </button>
                     )}
                   </div>
+                  <div className="detail-block detail-next-step">
+                    <a href="#actions">Review governed actions <span aria-hidden="true">→</span></a>
+                    <p>Actions are evaluated by policy before execution.</p>
+                  </div>
+                  </>}
+                  {incidentView === "recovery" && <>
                   <div className="detail-block">
                     <h4>Shadow replay</h4>
                     <p className="muted">Replay the fixed local source in scratch space to test whether the missing row can be restored.</p>
@@ -896,6 +936,8 @@ export default function OperationsPage() {
                       <button className="secondary" onClick={() => replayIncident(session)} disabled={busy}>Run shadow replay</button>
                     )}
                   </div>
+                  </>}
+                  {incidentView === "evidence" && <>
                   <div className="detail-block">
                     <h4>Evidence timeline</h4>
                     {selected.timeline?.length ? (
@@ -915,6 +957,7 @@ export default function OperationsPage() {
                       <p className="muted">Showing the first 100 events.</p>
                     )}
                   </div>
+                  </>}
                   {canExecute && selected.status === "OPEN" && (
                     <button
                       className="secondary"

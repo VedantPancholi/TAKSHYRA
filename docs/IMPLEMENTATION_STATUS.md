@@ -1,7 +1,12 @@
 # Implementation status — verified engineering record
 
 **Updated:** 2026-11-15
-**Stage:** M0–M8 and the first two M9 slices (PRs #13–14) plus ADF fault hardening (PR #15) are merged into `main`. The local broker consumer is on `feat/m9-broker-consumer`; no live Azure or AWS integration is verified.
+**Stage:** M0–M8, ADF M9 slices (PRs #13–15), local broker consumer (PR #16) and operator console update (PR #17) are merged into `main`. Glass console work is on `feat/ui-glass-interactions`; no live Azure or AWS integration is verified.
+
+## Glass console follow-up (2026-11-15)
+
+- `feat/ui-glass-interactions` restyles the existing operations console with translucent dark surfaces, restrained blur, clearer focus and hover states, and responsive fallbacks. The visual treatment keeps dense tables and status text readable.
+- Summary cards now open the corresponding incident queue view. Incident details offer Overview, Evidence and Recovery views; search filters can be cleared in one action, and the workspace reports when an API operation is in progress. Existing role checks, API data, proposal workflow and simulated-evidence labels remain in place.
 
 ## M9 local broker consumer (2026-11-15)
 

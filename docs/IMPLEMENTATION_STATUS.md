@@ -9,6 +9,10 @@
 - A schema mismatch goes to a local DLQ ledger outcome; lag and late events produce evidence-linked incidents. Tenant-scoped broker status reports written, DLQ and failure counts. An expired checkpoint stops processing for manual reconciliation instead of skipping missing entries.
 - The demo publisher is executor-only, development-only and emits server-owned fixtures. No customer stream or cloud broker is connected. The existing in-memory stream lab remains available as a separate simulator.
 
+## M9 operator console follow-up (2026-11-15)
+
+- The stacked `feat/m9-operator-console` branch adds sticky section navigation, a searchable incident queue with status and severity filters, and a local broker delivery panel showing tenant-scoped written, DLQ and flagged counts. Operators can publish a fixed broker scenario and refresh its asynchronous results. Executor/viewer roles remain enforced by the API.
+
 ## M9 ADF failure-case hardening (2026-11-15)
 
 - Adversarial tests exposed two defects: a malformed later run could leave an earlier failed run and incident pending for commit, and an unhashable provider status raised an unexpected exception. The importer now wraps each batch in a database savepoint and validates status types before membership checks.

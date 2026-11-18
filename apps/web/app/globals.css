@@ -1068,6 +1068,33 @@ footer span {
     flex-direction: column;
   }
   .incident-filters { flex-direction: column; }
+  .incident-list .table-wrap { overflow: visible; }
+  .incident-list table,
+  .incident-list tbody { display: block; white-space: normal; }
+  .incident-list thead { display: none; }
+  .incident-list tbody tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--line);
+  }
+  .incident-list tbody tr:last-child { border-bottom: 0; }
+  .incident-list td { padding: 0; border: 0; min-width: 0; }
+  .incident-list td:first-child,
+  .incident-list td:last-child { grid-column: 1 / -1; }
+  .incident-list td:nth-child(2)::before,
+  .incident-list td:nth-child(3)::before,
+  .incident-list td:last-child::before {
+    display: block;
+    margin-bottom: 5px;
+    color: var(--muted);
+    font: 10px "DM Mono";
+    letter-spacing: 0.08em;
+  }
+  .incident-list td:nth-child(2)::before { content: "SEVERITY"; }
+  .incident-list td:nth-child(3)::before { content: "STATUS"; }
+  .incident-list td:last-child::before { content: "LAST SEEN"; }
   .module-grid, .pipeline-grid { grid-template-columns: 1fr; }
   .scope-banner { flex-direction: column; gap: 4px; }
   .proposal-facts > div {

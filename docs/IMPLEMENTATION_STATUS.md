@@ -9,6 +9,13 @@
 - The shared workspace context keeps the in-memory sign-in, selected incident, proposal, and queue filters available while navigating. The Pipelines page displays only API-backed registry entries and linked incident counts; it does not imply run history or live cloud monitoring.
 - Local demo controls and the M6 web smoke now select the `seed_orders_v1` pipeline by its API source kind, so adding ADF or telemetry pipelines does not redirect the demo to the wrong pipeline.
 
+## Local QA regression follow-up (2026-11-18)
+
+- The full Python suite passed: 54 tests, with one upstream Starlette/AnyIO deprecation warning. Ruff passed. The production web build and TypeScript check passed, and all Compose services reported healthy.
+- The M1-M6, M8 and M9 Compose smokes passed, including retries, persistent failure, quality quarantine, approval, verified shadow recovery, mocked ADF batch rollback and concurrent polls, and broker checkpoint/DLQ behavior. The Python suite also covers tampered or expired approvals and tenant boundaries. Six older smoke scripts now select the seeded pipeline by `source_kind` rather than registry order.
+- Headless Chromium on the loopback origin verified distinct module routes, incident selection across pages, annotation execution, viewer restrictions, mobile navigation, and recovery from an injected incident-list API outage. Sign-in now waits for required workspace data before showing a signed-in view; the mobile incident list shows severity, status and last-seen fields without horizontal scrolling.
+- These checks exercise the local synthetic environment. No live Azure or AWS account, real customer pipeline, production identity, sustained load, or disaster-recovery drill was tested.
+
 ## Glass console follow-up (2026-11-15)
 
 - `feat/ui-glass-interactions` restyles the existing operations console with translucent dark surfaces, restrained blur, clearer focus and hover states, and responsive fallbacks. The visual treatment keeps dense tables and status text readable.

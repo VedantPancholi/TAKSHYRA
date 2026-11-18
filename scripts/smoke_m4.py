@@ -33,7 +33,8 @@ if active["definition"] != definition:
             raise
         active = call("/api/v1/contracts")["items"][0]
 assert active["definition"]["expected_row_count"] is None
-pipeline = call("/api/v1/pipelines")["items"][0]["id"]
+pipeline = next(item["id"] for item in call("/api/v1/pipelines")["items"]
+                if item["source_kind"] == "seed_orders_v1")
 
 
 def run(body):

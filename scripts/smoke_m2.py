@@ -34,7 +34,8 @@ def run_fault(pipeline_id: str, fault: str):
     raise AssertionError(f"M2 {fault} did not finish within 60 seconds")
 
 
-pipeline = request("/api/v1/pipelines")["items"][0]
+pipeline = next(item for item in request("/api/v1/pipelines")["items"]
+                if item["source_kind"] == "seed_orders_v1")
 f02 = run_fault(pipeline["id"], "F02")
 assert f02["execution_status"] == "SUCCEEDED"
 assert [attempt["status"] for attempt in f02["attempts"]] == ["FAILED", "FAILED", "SUCCEEDED"]

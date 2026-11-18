@@ -33,7 +33,9 @@ Next.js + TypeScript, accessible component toolkit, keyboard/focus handling, con
 
 ## Recommended console redesign after M9
 
-The current single scrolling page proves the workflow but makes the operator scan too much. Use a persistent left navigation with **Overview, Pipelines, Incidents, Assets, Actions, Integrations**. Keep tenant, environment and connector mode visible in the header. Open an incident in a dedicated detail view while preserving the incident queue's filters and scroll position.
+**Implementation note (2026-11-18):** The console now has distinct Overview, Incidents, Pipelines, Streaming and Governed actions routes. A persistent sidebar and shared in-memory workspace state support navigation and the incident-to-proposal handoff. The Pipelines page shows the current API registry and linked incidents; detailed run history and cloud controls remain future work.
+
+The earlier single scrolling page proved the workflow but made the operator scan too much. The next design iteration should add Assets and Integrations when their APIs are ready, and move incident details to a dedicated route while preserving the queue's filters and scroll position. Keep tenant, environment and connector mode visible in the header as those capabilities become available.
 
 1. **Find work quickly:** Add search, status/severity/owner/source filters, saved views such as *Needs me* and *Awaiting approval*, sortable columns and pagination. Keep primary actions in the table toolbar and details in the selected row or detail view. This follows [Carbon's data table guidance](https://v10.carbondesignsystem.com/components/data-table/usage/).
 2. **Explain the problem in one screen:** The incident header shows one sentence in plain language, current status, owner, age, execution/quality/publication as separate states, and a clearly marked *simulated* or *observed* source. Put evidence, timeline, impact and recovery in tabs. Datadog's [incident detail](https://docs.datadoghq.com/incident_response/incident_management/investigate/) and [timeline](https://docs.datadoghq.com/incident_response/incident_management/investigate/timeline/) are useful patterns for this flow.

@@ -1,7 +1,13 @@
 # Implementation status — verified engineering record
 
-**Updated:** 2026-11-15
+**Updated:** 2026-11-18
 **Stage:** M0–M8, ADF M9 slices (PRs #13–15), local broker consumer (PR #16) and operator console update (PR #17) are merged into `main`. Glass console work is on `feat/ui-glass-interactions`; no live Azure or AWS integration is verified.
+
+## Multi-page console follow-up (2026-11-18)
+
+- `feat/ui-module-pages` builds on `feat/ui-glass-interactions` and separates Overview, Incidents, Pipelines, Streaming, and Governed actions into distinct routes with a persistent sidebar and responsive mobile navigation.
+- The shared workspace context keeps the in-memory sign-in, selected incident, proposal, and queue filters available while navigating. The Pipelines page displays only API-backed registry entries and linked incident counts; it does not imply run history or live cloud monitoring.
+- Local demo controls and the M6 web smoke now select the `seed_orders_v1` pipeline by its API source kind, so adding ADF or telemetry pipelines does not redirect the demo to the wrong pipeline.
 
 ## Glass console follow-up (2026-11-15)
 

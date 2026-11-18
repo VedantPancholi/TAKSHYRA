@@ -46,7 +46,8 @@ except HTTPError as exc:
     assert exc.code == 404
 
 assert actor("viewer", "/api/core/me")["role"] == "viewer"
-pipeline_id = actor("executor", "/api/core/pipelines")["items"][0]["id"]
+pipeline_id = next(item["id"] for item in actor("executor", "/api/core/pipelines")["items"]
+                   if item["source_kind"] == "seed_orders_v1")
 incident = actor("executor", f"/api/core/demo/pipelines/{pipeline_id}/freshness-miss", "POST", {})
 incident_id = incident["id"]
 assert actor("viewer", f"/api/core/incidents/{incident_id}")["id"] == incident_id

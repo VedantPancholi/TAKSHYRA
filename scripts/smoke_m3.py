@@ -29,7 +29,8 @@ def approver(path: str, method: str = "GET"):
     return request(path, "demo-a-approver", os.environ["DEMO_A_APPROVER_PASSWORD"], method)
 
 
-pipeline_id = executor("/api/v1/pipelines")["items"][0]["id"]
+pipeline_id = next(item["id"] for item in executor("/api/v1/pipelines")["items"]
+                   if item["source_kind"] == "seed_orders_v1")
 incident_id = executor(f"/api/v1/demo/pipelines/{pipeline_id}/freshness-miss", "POST", {})["id"]
 prefix = "/api/v1/action-proposals"
 annotation = executor(prefix, "POST", {"action_type": "incident.annotate", "target_id": incident_id,

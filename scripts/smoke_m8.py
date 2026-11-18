@@ -40,7 +40,8 @@ def wait_for(check, seconds=45):
     raise AssertionError("Timed out waiting for the worker")
 
 
-pipeline = call("executor", "pipelines")["items"][0]
+pipeline = next(item for item in call("executor", "pipelines")["items"]
+                if item["source_kind"] == "seed_orders_v1")
 source = call("executor", f"pipelines/{pipeline['id']}/runs", "POST",
               {"demo_fault": "F04"}, str(uuid.uuid4()))
 source_id = source["id"]

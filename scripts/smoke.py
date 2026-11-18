@@ -20,7 +20,8 @@ def request(path: str, method: str = "GET", body: dict | None = None):
 
 
 KEY = uuid.uuid4().hex
-pipeline = request("/api/v1/pipelines")["items"][0]
+pipeline = next(item for item in request("/api/v1/pipelines")["items"]
+                if item["source_kind"] == "seed_orders_v1")
 run = request(f"/api/v1/pipelines/{pipeline['id']}/runs", "POST", {})
 for _ in range(30):
     run = request(f"/api/v1/runs/{run['id']}")

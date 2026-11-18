@@ -235,9 +235,6 @@ function useWorkspaceState() {
         setIncidentStatus("ALL");
         setIncidentSeverity("ALL");
       }
-      setWorkspaceTenant(active.tenant);
-      setSession(active);
-      setPassword("");
       const [list, pipeList, proposals, streamObservations, broker] = await Promise.all([
         api<{ items: Incident[] }>(active, "GET", "incidents"),
         api<{ items: Pipeline[] }>(
@@ -267,6 +264,9 @@ function useWorkspaceState() {
           setProposal(null);
         }
       }
+      setWorkspaceTenant(active.tenant);
+      setSession(active);
+      setPassword("");
     });
   }
 

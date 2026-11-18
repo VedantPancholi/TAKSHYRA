@@ -27,7 +27,8 @@ graph = call(f"/api/v1/lineage/{curated['id']}/impact")
 assert {item["name"] for item in graph["items"]} == {"demo.revenue_dashboard", "demo.sales_forecast"}
 assert all(item["impact_type"] == "potential" for item in graph["items"])
 
-pipeline = call("/api/v1/pipelines")["items"][0]["id"]
+pipeline = next(item["id"] for item in call("/api/v1/pipelines")["items"]
+                if item["source_kind"] == "seed_orders_v1")
 run = call(f"/api/v1/pipelines/{pipeline}/runs", "POST", {"demo_fault": "F04"}, f"m5-{uuid.uuid4().hex}")
 for _ in range(60):
     current = call(f"/api/v1/runs/{run['id']}")
